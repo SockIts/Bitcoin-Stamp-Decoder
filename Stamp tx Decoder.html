@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <title>STAMP Decoder</title>
+  <script type="text/javascript" src="js/lib/sha256.js"></script>
+  <script>
+    let example_txs = [
+      '9e99825880aa7cac75629ec01de28b419f691503af2c4f51b4c8b939fd37e310', //20 Classic stamp (image/png)_A4444444444444444441
+      'c46c4e59f64cdcce78e6680079bf6ae9b4d976f07eba2797c02c4c602807b17e', //20 Classic stamp (image/gif)_A11933229176907070000
+      '703a8e43fbad456480a6a0820584ded924151278a09e1b832b3e11e2299d1a3a', //20 Classic stamp (image/svg+xml)_A13944796112024248000
+      'ad891d1235b04110e6d174040de034760d1fa4c0a18437f169a1d1de34091ed3', //20 Classic stamp (text/html)_A705150012944689361
+      '9bfd550831fd3fde30a8d168e458340256b58b1e75ad109785d7ce5beb726946', //22 Olga stamp (image/png)_A11804245586304060000
+      'c075e98ae365c809ccd2804c1487a799748399eeb9dd61708c814a5da34c9b78', //22 Olga stamp (image/gif)_A6862486050490727000
+      '27000ab9c75570204adc1b3a5e7820c482d99033fbb3aafb844c3a3ce8b063db', //22 Olga stamp (image/svg+xml)_A7459748738125506000
+      '8c7c8efe339d10a981ae189c7c20851f1e2f10e0e8e6792a99dbe27e32b6b6a6', //22 Olga stamp (text/html)_A2121000000020000666
+      '2cfdc5d737065aa5c5c9febde8a803b1e6ee44e47de0f2788f9dfc4d40f7ed71', //20 Classic stamp Multisig (text/html)_A2121000000030000111
+    ];
+
+    let standards = ['stamp'];
+    let p2wsh = [];
+
+    const queryString = window.location.search;
+    const urlParams = new URLSearchParams(queryString);
+    let network = urlParams.get('network');
+    if (network == 'testnet') network = 'test3';
+    if (network != 'test3') network = 'main';
+    let tx = urlParams.get('tx');
+
+    async function get(tx) {
+      try {
+        if (!/^[0-9a-fA-F]{64}$/.test(tx)) {
+          throw new Error('Invalid transaction ID format');
+        }
+        let url = `https://api.blockcypher.com/v1/btc/${network}/txs/${tx}?instart=0&outstart=0&limit=5000`;
+        let response = await fetch(url, { method: 'GET', mode: 'cors' });
+        if (!response.ok) {
+          let errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+        let obj = await response.json();
+        if (!obj || !obj.hash) {
+          throw new Error('Invalid or empty transaction data');
+        }
+        while (obj.next_outputs) {
+          let nextResponse = await fetch(obj.next_outputs, { method: 'GET', mode: 'cors' });
+          if (!nextResponse.ok) {
+            throw new Error(`HTTP ${nextResponse.status}: Failed to fetch additional outputs`);
+          }
+          let nextObj = await nextResponse.json();
+          obj.outputs = obj.outputs.concat(nextObj.outputs);
+          obj.next_outputs = nextObj.next_outputs;
+        }
+        console.log(`Fetched ${obj.outputs.length} outputs for tx ${tx}`);
+        return obj;
+      } catch (e) {
+        console.error('Error fetching transaction:', e.message, { tx, network, url });
+        return null;
+      }
+    }
+
+    async function getRawTx(tx) {
+      console.log('Fetching raw transaction data for witness scripts...');
+      return null; // Placeholder
+    }
+
+    function getImageDimensions(base64, file_type) {
+      return new Promise((resolve) => {
+        try {
+          if (!/^[a-zA-Z0-9+\/=]+$/.test(base64)) {
+            throw new Error('Invalid base64 string');
+          }
+          if (file_type === 'svg+xml') {
+            let xml = atob(base64);
+            let parser = new DOMParser();
+            let svgDoc = parser.parseFromString(xml, 'image/svg+xml');
+            let svgElement = svgDoc.querySelector('svg');
+            if (svgElement) {
+              let width = svgElement.getAttribute('width') || 'unknown';
+              let height = svgElement.getAttribute('height') || 'unknown';
+              if (width && height && !isNaN(parseFloat(width)) && !isNaN(parseFloat(height))) {
+                resolve(`${parseFloat(width)}x${parseFloat(height)}`);
+              } else {
+                resolve('unknown');
+              }
+            } else {
+              resolve('unknown');
+            }
+          } else if (file_type === 'html') {
+            resolve('300x300');
+          } else {
+            let img = new Image();
+            img.onload = function() {
+              resolve(`${img.width}x${img.height}`);
+            };
+            img.onerror = function() {
+              resolve('unknown');
+            };
+            img.src = `data:image/${file_type};base64,${base64}`;
+          }
+        } catch (e) {
+          console.error('Error getting dimensions:', e);
+          resolve('unknown');
+        }
+      });
+    }
+
+    async function get_json(tx) {
+      if (typeof tx !== 'undefined' && /^[0-9a-fA-F]{64}$/.test(tx)) {
+        (async () => {
+          let json = await get(tx);
+          if (!json) {
+            document.getElementById("output").innerHTML = wl('Error', `Failed to fetch transaction data for ${tx}`);
+            return;
+          }
+          let rawHex = await getRawTx(tx);
+          decode(json, rawHex, tx);
+        })();
+      } else {
+        document.getElementById("output").innerHTML = wl('Error', 'Invalid transaction ID');
+      }
+    }
+
+    async function decode(json, rawHex, tx) {
+      try {
+        json = JSON.parse(JSON.stringify(json));
+        let hash = json['hash'];
+        let block_height = json['block_height'] || 'unknown';
+        let from_addr = json['addresses'] && json['addresses'][0] ? json['addresses'][0] : 'unknown';
+        let utxo = json['inputs'] && json['inputs'][0]['prev_hash'] ? json['inputs'][0]['prev_hash'] : 'unknown';
+        let first_send_sat = json['outputs'] && json['outputs'][0]['value'] ? json['outputs'][0]['value'] : 0;
+        let script_type = [];
+        let script = [];
+        let to_addr = [];
+        p2wsh = [];
+
+        for (const x of json['outputs'] || []) {
+          let type = x['script_type'];
+          script_type.push(type);
+          if (type == 'pay-to-pubkey-hash') {
+            script.push('0');
+            to_addr.push(x['addresses'] && x['addresses'][0] ? x['addresses'][0] : 'unknown');
+          } else if (type == 'pay-to-multi-pubkey-hash') {
+            script.push(x['script']);
+            to_addr.push('0');
+          } else if (type == 'null-data') {
+            script.push(x['data_hex']);
+            to_addr.push('0');
+          } else if (type == 'pay-to-witness-script-hash') {
+            script.push(x['script']);
+            p2wsh.push([x['script'], x['value']]);
+          } else {
+            script.push('?');
+            to_addr.push('?');
+          }
+        }
+
+        let recipient = script_type[0] == 'pay-to-pubkey-hash' ? to_addr[0] : '0';
+        let cp_msg = '';
+        let encoding = '';
+        let out = '';
+
+        for (let i = 0; i < script.length; i++) {
+          if (script_type[i] == 'null-data') {
+            encoding = 'op_return';
+            let raw = script[i];
+            raw = xcp_rc4(utxo, raw);
+            if (raw.substring(0, 16) == '434e545250525459') {
+              cp_msg += raw;
+            } else {
+              out += wl('Error', 'Invalid RC4 decryption for OP_RETURN: ' + raw.substring(0, 16));
+            }
+          }
+          if (script_type[i] == 'pay-to-multi-pubkey-hash') {
+            let raw = script[i];
+            let len = 0;
+            if (raw.length == 142) {
+              encoding = 'op_return';
+              let len_hex = raw.substring(72, 74);
+              len = parseInt(hexToDec(len_hex));
+              if (isNaN(len) || len < 0 || len > (raw.length - 74) / 2) {
+                console.error(`Invalid length in multisig script ${i}: len=${len}, script=${raw}`);
+                continue;
+              }
+              raw = raw.substring(74, 74 + (len * 2));
+              if (!/^[0-9a-fA-F]+$/.test(raw)) {
+                console.error(`Invalid hex data in multisig script ${i}: ${raw}`);
+                continue;
+              }
+              console.log(`Multisig output ${i} (length ${script[i].length}): len=${len}, raw=${raw}`);
+              cp_msg += raw;
+            } else if (raw.length == 210) {
+              encoding = 'multisig';
+              raw = raw.substring(6, 68) + raw.substring(74, 136);
+              raw = xcp_rc4(utxo, raw);
+              len = parseInt(hexToDec(raw.substring(0, 2)));
+              if (isNaN(len) || len < 0 || len > (raw.length - 2) / 2) {
+                console.error(`Invalid length in multisig script ${i}: len=${len}, script=${raw}`);
+                continue;
+              }
+              raw = raw.substring(2, 2 + (len * 2));
+              if (!/^[0-9a-fA-F]+$/.test(raw)) {
+                console.error(`Invalid hex data in multisig script ${i}: ${raw}`);
+                continue;
+              }
+              console.log(`Multisig output ${i} (length ${script[i].length}): len=${len}, raw=${raw}`);
+              if (cp_msg == '') {
+                cp_msg += raw; // Include CNTRPRTY prefix for first output
+              } else {
+                if (raw.substring(0, 16) == '434e545250525459') {
+                  raw = raw.substring(16); // Strip CNTRPRTY for subsequent outputs
+                }
+                cp_msg += raw;
+              }
+            } else {
+              encoding = 'multisig (custom length)';
+              raw = xcp_rc4(utxo, raw);
+              len = parseInt(hexToDec(raw.substring(0, 2)));
+              if (isNaN(len) || len < 0 || len > (raw.length - 2) / 2) {
+                console.error(`Invalid length in multisig script ${i}: len=${len}, script=${raw}`);
+                continue;
+              }
+              raw = raw.substring(2, 2 + (len * 2));
+              if (!/^[0-9a-fA-F]+$/.test(raw)) {
+                console.error(`Invalid hex data in multisig script ${i}: ${raw}`);
+                continue;
+              }
+              console.log(`Multisig output ${i} (length ${script[i].length}): len=${len}, raw=${raw}`);
+              if (cp_msg == '') {
+                cp_msg += raw;
+              } else {
+                if (raw.substring(0, 16) == '434e545250525459') {
+                  raw = raw.substring(16);
+                }
+                cp_msg += raw;
+              }
+            }
+          }
+        }
+        console.log(`Final cp_msg: ${cp_msg}`);
+
+        out += wl('BITCOIN DATA', '');
+        out += wl('Tx ID', hash);
+        out += wl('Address', from_addr);
+        out += wl('COUNTERPARTY DATA', '');
+
+        if (cp_msg.substring(0, 16) != '434e545250525459') {
+          out += wl('Error', 'No valid Counterparty data found');
+          if (p2wsh.length > 0) {
+            console.log('P2WSH outputs found; attempting OLGA STAMP decoding');
+            out += await print_standard('stamp:', tx, 'A' + BigInt('0x' + cp_msg.substring(2, 18)).toString(10), cp_msg);
+          } else {
+            out += wl('Error', 'No valid Counterparty data or P2WSH outputs found');
+          }
+          document.getElementById("output").innerHTML = out;
+          output2(hash);
+          return;
+        }
+
+        cp_msg = cp_msg.substring(16);
+        let id_hex = cp_msg.substring(0, 2);
+        let id = parseInt(id_hex, 16);
+        out += wl('Message ID (hex)', id_hex);
+        out += wl('Message ID', id);
+
+        if (id == 20 || id == 21) {
+          let asset_hex = cp_msg.substring(2, 18);
+          let asset = BigInt('0x' + asset_hex).toString(10);
+          cp_msg = cp_msg.substring(18);
+          let q_hex = cp_msg.substring(0, 16);
+          let q = parseInt(q_hex, 16);
+          cp_msg = cp_msg.substring(16);
+          let div_hex = cp_msg.substring(0, 2);
+          let div = parseInt(div_hex, 16) ? true : false;
+          cp_msg = cp_msg.substring(2);
+          let lock_hex = cp_msg.substring(0, 2);
+          let lock = parseInt(lock_hex, 16) ? true : false;
+          cp_msg = cp_msg.substring(2);
+          let reset_hex = cp_msg.substring(0, 2);
+          let reset = parseInt(reset_hex, 16) ? true : false;
+          cp_msg = cp_msg.substring(2);
+
+          let subasset_hex = '';
+          let subasset = '';
+          if (id == 21) {
+            let len_subasset_hex = cp_msg.substring(0, 2);
+            let len_subasset = parseInt(len_subasset_hex, 16);
+            cp_msg = cp_msg.substring(2);
+            subasset_hex = cp_msg.substring(0, len_subasset * 2);
+            subasset = hex_to_subasset(subasset_hex);
+            cp_msg = cp_msg.substring(len_subasset * 2);
+          }
+
+          let descr = hex2a(cp_msg);
+          descr = decodeURIComponent(escape(descr));
+
+          out += wl('Type', id == 20 ? 'Issuance' : 'Issuance (Subasset)');
+          if (recipient != '0') {
+            out += wl('Transfer To', recipient);
+            out += wl('Dust (sat)', first_send_sat);
+            out += wl('Dust (btc)', (first_send_sat / 100000000).toFixed(8));
+          }
+          out += wl('Asset', 'A' + asset);
+          if (id == 21) {
+            out += wl('Subasset', subasset);
+          }
+          out += wl('Issuance', q);
+          out += wl('Divisible', div);
+          out += wl('Lock', lock);
+          out += wl('Reset', reset);
+
+          if (descr.toLowerCase().startsWith('stamp:')) {
+            out += await print_standard(descr, tx, 'A' + asset, '');
+          }
+        } else if (id == 22) {
+          let asset_hex = cp_msg.substring(2, 18);
+          let asset = BigInt('0x' + asset_hex).toString(10);
+          cp_msg = cp_msg.substring(18);
+          let q_hex = cp_msg.substring(0, 16);
+          let q = parseInt(q_hex, 16);
+          cp_msg = cp_msg.substring(16);
+          let div_hex = cp_msg.substring(0, 2);
+          let div = parseInt(div_hex, 16) ? true : false;
+          cp_msg = cp_msg.substring(2);
+          let lock_hex = cp_msg.substring(0, 2);
+          let lock = parseInt(lock_hex, 16) ? true : false;
+          cp_msg = cp_msg.substring(2);
+          let reset_hex = cp_msg.substring(0, 2);
+          let reset = parseInt(reset_hex, 16) ? true : false;
+          cp_msg = cp_msg.substring(2);
+
+          out += wl('Type', 'Issuance');
+          out += wl('Asset', 'A' + asset);
+          out += wl('Issuance', q);
+          out += wl('Divisible', div);
+          out += wl('Lock', lock);
+          out += wl('Reset', reset);
+
+          if (p2wsh.length > 0) {
+            out += await print_standard('stamp:', tx, 'A' + asset, '');
+          } else {
+            out += await print_standard('stamp:', tx, 'A' + asset, cp_msg);
+          }
+        } else {
+          out += wl('Error', 'Not an Issuance transaction! Message ID: ' + id);
+        }
+
+        document.getElementById("output").innerHTML = out;
+        output2(hash);
+      } catch (e) {
+        console.error('Error in decode:', e);
+        document.getElementById("output").innerHTML = wl('Error', 'Failed to decode transaction: ' + e.message);
+      }
+    }
+
+    function output2(tx) {
+      let out = '<br><br>';
+      out += 'View on: ';
+      out += '<a href="https://stampchain.io/api/v2/stamps/' + tx + '">Stampchain.io</a> – ';
+      out += '<a href="https://live.blockcypher.com/btc/tx/' + tx + '/">BlockCypher</a> – ';
+      out += '<a href="https://www.blockchain.com/btc/tx/' + tx + '">Blockchain.com</a> – ';
+      out += '<a href="https://blockstream.info/tx/' + tx + '">Blockstream</a>';
+      document.getElementById("output2").innerHTML = out;
+    }
+
+    function wl(title, info) {
+      return title.padEnd(18, ' ') + ' ' + chunk(String(info), '<br>' + ''.padEnd(19, ' '), 96) + '<br>';
+    }
+
+    function chunk(str, sep, n) {
+      str = String(str);
+      var ret = [];
+      for (var i = 0, len = str.length; i < len; i += n) {
+        ret.push(str.substr(i, n));
+      }
+      return ret.join(sep);
+    }
+
+    function hex2a(hexx) {
+      var hex = hexx.toString();
+      var str = '';
+      for (var i = 0; i < hex.length; i += 2) {
+        str += String.fromCharCode(parseInt(hex.substr(i, 2), 16));
+      }
+      return str;
+    }
+
+    function xcp_rc4(key, datachunk) {
+      return bin2hex(rc4(hex2bin(key), hex2bin(datachunk)));
+    }
+
+    function hex2bin(hex) {
+      var bytes = [];
+      for (var i = 0; i < hex.length - 1; i += 2) {
+        var ch = parseInt(hex.substr(i, 2), 16);
+        bytes.push(ch);
+      }
+      return String.fromCharCode.apply(String, bytes);
+    }
+
+    function bin2hex(s) {
+      var o = '';
+      for (var i = 0, l = s.length; i < l; i++) {
+        var n = s.charCodeAt(i).toString(16);
+        o += n.length < 2 ? '0' + n : n;
+      }
+      return o;
+    }
+
+    function rc4(key, str) {
+      var s = [], j = 0, x, res = '';
+      for (var i = 0; i < 256; i++) {
+        s[i] = i;
+      }
+      for (i = 0; i < 256; i++) {
+        j = (j + s[i] + key.charCodeAt(i % key.length)) % 256;
+        x = s[i];
+        s[i] = s[j];
+        s[j] = x;
+      }
+      i = 0;
+      j = 0;
+      for (var y = 0; y < str.length; y++) {
+        i = (i + 1) % 256;
+        j = (j + s[i]) % 256;
+        x = s[i];
+        s[i] = s[j];
+        s[j] = x;
+        res += String.fromCharCode(str.charCodeAt(y) ^ s[(s[i] + s[j]) % 256]);
+      }
+      return res;
+    }
+
+    function hexToDec(s) {
+      var digits = [0], carry;
+      for (var i = 0; i < s.length; i += 1) {
+        carry = parseInt(s.charAt(i), 16);
+        for (var j = 0; j < digits.length; j += 1) {
+          digits[j] = digits[j] * 16 + carry;
+          carry = digits[j] / 10 | 0;
+          digits[j] %= 10;
+        }
+        while (carry > 0) {
+          digits.push(carry % 10);
+          carry = carry / 10 | 0;
+        }
+      }
+      return digits.reverse().join('');
+    }
+
+    function asset_name(id) {
+      if (id == 0) return 'BTC';
+      if (id == 1) return 'XCP';
+      if (id >= 95428956661682177) return 'numerical or sub-asset';
+      if (id > 9007199254740991) return 'max int error';
+      let b26_digits = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      let n = id;
+      let name = '';
+      do {
+        let mod = n % 26;
+        name = b26_digits[mod] + name;
+        n -= mod;
+        n /= 26;
+      } while (n > 0);
+      return name;
+    }
+
+    function hex_to_subasset(hex) {
+      const SUBASSET_DIGITS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_@!';
+      let integer = BigInt('0x' + hex);
+      let ret = '';
+      while (integer != 0n) {
+        ret = SUBASSET_DIGITS[(integer % 68n) - 1n] + ret;
+        integer = integer / 68n;
+      }
+      return ret;
+    }
+
+    async function print_standard(descr, tx, assetOrCPID, cp_msg) {
+      let out = '';
+      if (descr.toLowerCase().startsWith('stamp:')) {
+        // Handle Classic Stamps (ID 20 or 21)
+        if (/^[a-zA-Z0-9+\/=]+$/.test(descr.substr(6))) {
+          out += wl('Standard', 'STAMP (Classic)');
+          let image = descr.slice(6).trim();
+          console.log(`Classic stamp base64: ${image.slice(0, 50)}...`);
+          let file_type = '';
+          try {
+            let decoded = atob(image);
+            console.log(`Decoded Classic stamp starts with: ${decoded.slice(0, 50)}...`);
+            // Simplified file type detection: check for image formats, default to HTML
+            if (image.slice(0, 6) === 'R0lGOD') {
+              file_type = 'gif';
+              console.log('Detected GIF in Classic stamp');
+            } else if (image.slice(0, 6) === 'iVBORw') {
+              file_type = 'png';
+              console.log('Detected PNG in Classic stamp');
+            } else if (image.slice(0, 4) === '/9j/') {
+              file_type = 'jpeg';
+              console.log('Detected JPEG in Classic stamp');
+            } else if (image.slice(0, 5) === 'PHN2Z' || image.slice(0, 5) === 'PD94b') {
+              file_type = 'svg+xml';
+              console.log('Detected SVG in Classic stamp');
+            } else {
+              file_type = 'html';
+              console.log('Detected HTML in Classic stamp (default)');
+            }
+
+            out += wl('Asset', assetOrCPID);
+            out += wl('MIME Type', file_type === 'html' ? 'text/html' : `image/${file_type}`);
+            out += `Description           <details><summary>Base64: (click to expand/collapse)</summary><pre style="white-space: pre-wrap; word-wrap: break-word; max-width: 900px;">STAMP:${image}</pre></details><br>`;
+            let dimensions = await getImageDimensions(image, file_type);
+            out += wl('Dimensions', dimensions);
+
+            if (file_type === 'html') {
+              out += `<iframe style="width:300px;height:300px;border:1px solid #000;" src="data:text/html;base64,${image}"></iframe><br>`;
+            } else {
+              out += `<img style="image-rendering:pixelated" src="data:image/${file_type};base64,${image}" /><br>`;
+            }
+          } catch (e) {
+            out += wl('Error', 'Invalid base64 data for Classic STAMP: ' + e.message);
+            console.error(`Base64 decode error in Classic stamp: ${e.message}, image=${image.slice(0, 50)}...`);
+          }
+        } else {
+          // Handle Olga Stamps (ID 22)
+          out += wl('Standard', 'STAMP (OLGA)');
+          let hex = '';
+          let dust = 0;
+          if (p2wsh.length === 0) {
+            console.log(`No P2WSH outputs; using multisig data for OLGA STAMP: cp_msg=${cp_msg}`);
+            if (cp_msg && cp_msg.length > 4) {
+              console.log(`Processing multisig data: cp_msg=${cp_msg}`);
+              hex = cp_msg;
+              if (!/^[0-9a-fA-F]+$/.test(hex)) {
+                out += wl('Error', 'Invalid hex format in multisig data for OLGA STAMP');
+                console.error(`Invalid hex: ${hex}`);
+                return out;
+              }
+              let file_size_hex = hex.slice(0, 4);
+              let file_size = parseInt(file_size_hex, 16);
+              console.log(`File size hex=${file_size_hex}, file_size=${file_size}, hex length=${hex.length}`);
+              if (isNaN(file_size) || file_size <= 0 || hex.length < file_size * 2 + 4) {
+                // Try Classic stamp parsing using descr
+                let descr = hex2a(hex);
+                descr = decodeURIComponent(escape(descr));
+                console.log(`Invalid file size, attempting Classic stamp parsing: descr=${descr}`);
+                if (descr.toLowerCase().startsWith('stamp:')) {
+                  return await print_standard(descr, tx, assetOrCPID, '');
+                } else {
+                  out += wl('Error', `Invalid or insufficient multisig data for file size: file_size=${file_size}, hex length=${hex.length}, required=${file_size * 2 + 4}`);
+                  console.error(`Invalid file size: ${file_size}, hex=${hex}`);
+                  return out;
+                }
+              }
+              let file = hex.slice(4, 4 + file_size * 2);
+              console.log(`Extracted file data: file=${file}`);
+              let hexPairs = file.match(/\w{2}/g);
+              if (!hexPairs) {
+                out += wl('Error', 'Invalid multisig data format for OLGA STAMP');
+                console.error(`Invalid file data: ${file}`);
+                return out;
+              }
+              let base64 = '';
+              try {
+                base64 = btoa(hexPairs.map(y => String.fromCharCode(parseInt(y, 16))).join(''));
+                console.log(`Olga stamp base64: ${base64.slice(0, 50)}...`);
+              } catch (e) {
+                out += wl('Error', 'Failed to convert multisig data to base64: ' + e.message);
+                console.error(`Base64 conversion error: ${e.message}, file=${file}`);
+                return out;
+              }
+              let file_type = '';
+              try {
+                let decoded = atob(base64);
+                console.log(`Decoded Olga stamp starts with: ${decoded.slice(0, 50)}...`);
+                if (base64.slice(0, 6) === 'R0lGOD') {
+                  file_type = 'gif';
+                  console.log('Detected GIF in Olga stamp');
+                } else if (base64.slice(0, 6) === 'iVBORw') {
+                  file_type = 'png';
+                  console.log('Detected PNG in Olga stamp');
+                } else if (base64.slice(0, 4) === '/9j/') {
+                  file_type = 'jpeg';
+                  console.log('Detected JPEG in Olga stamp');
+                } else if (base64.slice(0, 5) === 'PHN2Z' || base64.slice(0, 5) === 'PD94b') {
+                  file_type = 'svg+xml';
+                  console.log('Detected SVG in Olga stamp');
+                } else {
+                  file_type = 'html';
+                  console.log('Detected HTML in Olga stamp (default)');
+                }
+
+                out += wl('File size (int)', file_size);
+                out += wl('Burned (sat)', dust);
+                out += wl('Burned (btc)', (dust / 100000000).toFixed(8));
+                out += wl('Asset', assetOrCPID);
+                out += wl('MIME Type', file_type === 'html' ? 'text/html' : `image/${file_type}`);
+                out += `Description           <details><summary>STAMP: (click to expand/collapse)</summary><pre style="white-space: pre-wrap; word-wrap: break-word; max-width: 900px;">STAMP:${base64}</pre></details><br>`;
+                let dimensions = await getImageDimensions(base64, file_type);
+                out += wl('Dimensions', dimensions);
+                if (file_type === 'html') {
+                  out += `<iframe style="width:300px;height:300px;border:1px solid #000;" src="data:text/html;base64,${base64}"></iframe><br>`;
+                } else {
+                  out += `<img style="image-rendering:pixelated" src="data:image/${file_type};base64,${base64}" /><br>`;
+                }
+              } catch (e) {
+                out += wl('Error', 'Invalid base64 data for OLGA STAMP: ' + e.message);
+                console.error(`Base64 validation error: ${e.message}, base64=${base64.slice(0, 50)}...`);
+              }
+            } else {
+              out += wl('Error', 'No valid multisig data for OLGA STAMP');
+              console.error(`No valid cp_msg: ${cp_msg}`);
+            }
+          } else {
+            let hex = '';
+            let dust = 0;
+            for (let i = 0; i < p2wsh.length; i++) {
+              hex += p2wsh[i][0].slice(4);
+              dust += p2wsh[i][1];
+            }
+            let file_size_hex = hex.slice(0, 4);
+            let file_size = parseInt(file_size_hex, 16);
+            console.log(`P2WSH file size hex=${file_size_hex}, file_size=${file_size}, hex length=${hex.length}`);
+            if (isNaN(file_size) || file_size <= 0 || hex.length < file_size * 2 + 4) {
+              out += wl('Error', `Invalid or insufficient P2WSH data for file size: file_size=${file_size}, hex length=${hex.length}, required=${file_size * 2 + 4}`);
+              console.error(`Invalid P2WSH file size: ${file_size}, hex=${hex}`);
+              return out;
+            }
+            let file = hex.slice(4, 4 + file_size * 2);
+            console.log(`P2WSH file data: file=${file}`);
+            let hexPairs = file.match(/\w{2}/g);
+            if (!hexPairs) {
+              out += wl('Error', 'Invalid P2WSH data format for OLGA STAMP');
+              console.error(`Invalid P2WSH file data: ${file}`);
+              return out;
+            }
+            let base64 = '';
+            try {
+              base64 = btoa(hexPairs.map(y => String.fromCharCode(parseInt(y, 16))).join(''));
+              console.log(`P2WSH base64: ${base64.slice(0, 50)}...`);
+            } catch (e) {
+              out += wl('Error', 'Failed to convert P2WSH data to base64: ' + e.message);
+              console.error(`P2WSH base64 conversion error: ${e.message}, file=${file}`);
+              return out;
+            }
+            let file_type = '';
+            try {
+              let decoded = atob(base64);
+              console.log(`Decoded P2WSH starts with: ${decoded.slice(0, 50)}...`);
+              if (base64.slice(0, 6) === 'R0lGOD') {
+                file_type = 'gif';
+                console.log('Detected GIF in P2WSH');
+              } else if (base64.slice(0, 6) === 'iVBORw') {
+                file_type = 'png';
+                console.log('Detected PNG in P2WSH');
+              } else if (base64.slice(0, 4) === '/9j/') {
+                file_type = 'jpeg';
+                console.log('Detected JPEG in P2WSH');
+              } else if (base64.slice(0, 5) === 'PHN2Z' || base64.slice(0, 5) === 'PD94b') {
+                file_type = 'svg+xml';
+                console.log('Detected SVG in P2WSH');
+              } else {
+                file_type = 'html';
+                console.log('Detected HTML in P2WSH (default)');
+              }
+
+              out += wl('File size (int)', file_size);
+              out += wl('Burned (sat)', dust);
+              out += wl('Burned (btc)', (dust / 100000000).toFixed(8));
+              out += wl('Asset', assetOrCPID);
+              out += wl('MIME Type', file_type === 'html' ? 'text/html' : `image/${file_type}`);
+              out += `Description           <details><summary>STAMP: (click to expand/collapse)</summary><pre style="white-space: pre-wrap; word-wrap: break-word; max-width: 900px;">STAMP:${base64}</pre></details><br>`;
+              let dimensions = await getImageDimensions(base64, file_type);
+              out += wl('Dimensions', dimensions);
+              if (file_type === 'html') {
+                out += `<iframe style="width:300px;height:300px;border:1px solid #000;" src="data:text/html;base64,${base64}"></iframe><br>`;
+              } else {
+                out += `<img style="image-rendering:pixelated" src="data:image/${file_type};base64,${base64}" /><br>`;
+              }
+            } catch (e) {
+              out += wl('Error', 'Invalid base64 data for OLGA STAMP: ' + e.message);
+              console.error(`Base64 validation error: ${e.message}, base64=${base64.slice(0, 50)}...`);
+            }
+          }
+        }
+      }
+      return out;
+    }
+  </script>
+
+  <style>
+    #content {
+      font-family: Helvetica, sans-serif;
+      font-size: 16px;
+      margin: auto;
+      max-width: 1000px;
+      border: 3px solid #aaa;
+      border-radius: 12px;
+      background-color: #ccc;
+      padding: 20px;
+      text-align: left;
+    }
+
+    #output {
+      font-family: courier, consolas, monospace;
+      font-size: 14px;
+      white-space: pre;
+      image-rendering: pixelated;
+    }
+
+    h1 {
+      font-size: 28px;
+      margin-top: -4px;
+    }
+
+    p {
+      font-size: 16px;
+    }
+
+    input[type=text] {
+      width: 85%;
+      padding:3px;
+    }
+
+    input[type=submit] {
+      width: 8em;
+      margin-top: 10px;
+      padding:2px;
+    }
+
+    img {
+      image-rendering: crisp-edges;
+      width: 300px;
+    }
+
+    iframe {
+      border: 1px solid #000;
+      height: 300px;
+      width: 300px;
+    }
+
+    details {
+      cursor: pointer;
+      margin-top: 5px;
+    }
+
+    summary {
+      font-family: courier, consolas, monospace;
+      font-size: 14px;
+    }
+
+    pre {
+      font-family: courier, consolas, monospace;
+      font-size: 14px;
+      margin: 10px 0;
+      padding: 10px;
+      border: 2px solid #ddd;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+<div id="content">
+  <h1>Bitcoin STAMP Decoder</h1>
+  <p>Enter a Bitcoin transaction ID to decode CP/Stamps Data.</p>
+  <form onsubmit="event.preventDefault(); get_json(document.getElementById('txid').value);">
+    <p>
+      <input type="text" id="txid" name="txid" placeholder="Enter Bitcoin transaction ID"><br>
+      <input type="submit" value="Submit">
+    </p>
+  </form>
+  <p>This Stamp decoder is a modified version of Counterparty Decoder made by JP that decodes the tx details from the BlockCypher API and extracts STAMP (Classic and Olga) data</p><br>
+  <p><b>Note:</b> This updated decoder handles PNG, GIF, SVG+XML, and limited TEXT/HTML mime file types for both Classic and Olga STAMPs.</p>
+  
+<pre>
+  ____ ___ _____ ____ ___ ___ _   _         ____ _____  _    __  __ ____  ____  
+ | __ )_ _|_   _/ ___/ _ \_ _| \ | |       / ___|_   _|/ \  |  \/  |  _ \/ ___| 
+ |  _ \| |  | || |  | | | | ||  \| |       \___ \ | | / _ \ | |\/| | |_) \___ \ 
+ | |_) | |  | || |__| |_| | || |\  |        ___) || |/ ___ \| |  | |  __/ ___) |
+ |____/___| |_| \____\___/___|_| \_|       |____/ |_/_/   \_\_|  |_|_|   |____/ 
+                                                                                                                                                       
+</pre>
+      <div id="output"> </div>
+      <div id="output2"> </div>
+      <div id="footer"><br><br>
+        <p><i>Original Counterparty Decoder from JP<br>
+      For more info, read <a href="https://jpjanssen.com/how-to-reverse-engineer-counterparty-txs/">blog post</a>.</i><br><br><br>
+    Donate BTC, STAMP or SRC20 Tokens:<br>
+    NSID Wallet (TBD)</p>
+</div>
+</body>
+</html>
