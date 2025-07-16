@@ -1,20 +1,21 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>STAMP Decoder</title>
   <script type="text/javascript" src="js/lib/sha256.js"></script>
   <script>
     let example_txs = [
-      '9e99825880aa7cac75629ec01de28b419f691503af2c4f51b4c8b939fd37e310', //20 Classic stamp (image/png)_A4444444444444444441
-      'c46c4e59f64cdcce78e6680079bf6ae9b4d976f07eba2797c02c4c602807b17e', //20 Classic stamp (image/gif)_A11933229176907070000
-      '703a8e43fbad456480a6a0820584ded924151278a09e1b832b3e11e2299d1a3a', //20 Classic stamp (image/svg+xml)_A13944796112024248000
-      'ad891d1235b04110e6d174040de034760d1fa4c0a18437f169a1d1de34091ed3', //20 Classic stamp (text/html)_A705150012944689361
-      '9bfd550831fd3fde30a8d168e458340256b58b1e75ad109785d7ce5beb726946', //22 Olga stamp (image/png)_A11804245586304060000
-      'c075e98ae365c809ccd2804c1487a799748399eeb9dd61708c814a5da34c9b78', //22 Olga stamp (image/gif)_A6862486050490727000
-      '27000ab9c75570204adc1b3a5e7820c482d99033fbb3aafb844c3a3ce8b063db', //22 Olga stamp (image/svg+xml)_A7459748738125506000
-      '8c7c8efe339d10a981ae189c7c20851f1e2f10e0e8e6792a99dbe27e32b6b6a6', //22 Olga stamp (text/html)_A2121000000020000666
-      '2cfdc5d737065aa5c5c9febde8a803b1e6ee44e47de0f2788f9dfc4d40f7ed71', //20 Classic stamp Multisig (text/html)_A2121000000030000111
+      '9e99825880aa7cac75629ec01de28b419f691503af2c4f51b4c8b939fd37e310',
+      'c46c4e59f64cdcce78e6680079bf6ae9b4d976f07eba2797c02c4c602807b17e',
+      '703a8e43fbad456480a6a0820584ded924151278a09e1b832b3e11e2299d1a3a',
+      'ad891d1235b04110e6d174040de034760d1fa4c0a18437f169a1d1de34091ed3',
+      '9bfd550831fd3fde30a8d168e458340256b58b1e75ad109785d7ce5beb726946',
+      'c075e98ae365c809ccd2804c1487a799748399eeb9dd61708c814a5da34c9b78',
+      '27000ab9c75570204adc1b3a5e7820c482d99033fbb3aafb844c3a3ce8b063db',
+      '8c7c8efe339d10a981ae189c7c20851f1e2f10e0e8e6792a99dbe27e32b6b6a6',
+      '2cfdc5d737065aa5c5c9febde8a803b1e6ee44e47de0f2788f9dfc4d40f7ed71'
     ];
 
     let standards = ['stamp'];
@@ -23,8 +24,8 @@
     const queryString = window.location.search;
     const urlParams = new URLSearchParams(queryString);
     let network = urlParams.get('network');
-    if (network == 'testnet') network = 'test3';
-    if (network != 'test3') network = 'main';
+    if (network === 'testnet') network = 'test3';
+    if (network !== 'test3') network = 'main';
     let tx = urlParams.get('tx');
 
     async function get(tx) {
@@ -115,6 +116,13 @@
           }
           let rawHex = await getRawTx(tx);
           decode(json, rawHex, tx);
+          const notification = document.createElement('div');
+          notification.style.cssText = 'position: fixed; top: 20px; right: 20px; background-color: #28a745; color: white; padding: 10px 20px; border-radius: 5px; z-index: 1000;';
+          notification.textContent = 'Done! LFG';
+          document.body.appendChild(notification);
+          setTimeout(() => {
+            notification.remove();
+          }, 3000);
         })();
       } else {
         document.getElementById("output").innerHTML = wl('Error', 'Invalid transaction ID');
@@ -126,6 +134,7 @@
         json = JSON.parse(JSON.stringify(json));
         let hash = json['hash'];
         let block_height = json['block_height'] || 'unknown';
+        let block_time = json['received'] ? new Date(json['received']).toLocaleString() : 'unknown';
         let from_addr = json['addresses'] && json['addresses'][0] ? json['addresses'][0] : 'unknown';
         let utxo = json['inputs'] && json['inputs'][0]['prev_hash'] ? json['inputs'][0]['prev_hash'] : 'unknown';
         let first_send_sat = json['outputs'] && json['outputs'][0]['value'] ? json['outputs'][0]['value'] : 0;
@@ -205,10 +214,10 @@
               }
               console.log(`Multisig output ${i} (length ${script[i].length}): len=${len}, raw=${raw}`);
               if (cp_msg == '') {
-                cp_msg += raw; // Include CNTRPRTY prefix for first output
+                cp_msg += raw;
               } else {
                 if (raw.substring(0, 16) == '434e545250525459') {
-                  raw = raw.substring(16); // Strip CNTRPRTY for subsequent outputs
+                  raw = raw.substring(16);
                 }
                 cp_msg += raw;
               }
@@ -239,10 +248,12 @@
         }
         console.log(`Final cp_msg: ${cp_msg}`);
 
-        out += wl('BITCOIN DATA', '');
+        out += '<div class="section-title">BITCOIN DATA</div>';
         out += wl('Tx ID', hash);
+        out += wl('Block #', block_height);
+        out += wl('Block Time', block_time);
         out += wl('Address', from_addr);
-        out += wl('COUNTERPARTY DATA', '');
+        out += '<div class="section-title">COUNTERPARTY DATA</div>';
 
         if (cp_msg.substring(0, 16) != '434e545250525459') {
           out += wl('Error', 'No valid Counterparty data found');
@@ -258,24 +269,48 @@
         }
 
         cp_msg = cp_msg.substring(16);
+        console.log(`After removing CNTRPRTY: cp_msg=${cp_msg}`);
+        if (cp_msg.length < 36) { // Minimum: id_hex (2) + asset_hex (16) + q_hex (16) + div_hex (2)
+          out += wl('Error', `Invalid Counterparty message length: ${cp_msg.length} (expected at least 36)`);
+          document.getElementById("output").innerHTML = out;
+          output2(hash);
+          return;
+        }
+
         let id_hex = cp_msg.substring(0, 2);
         let id = parseInt(id_hex, 16);
+        console.log(`id_hex=${id_hex}, id=${id}`);
+        cp_msg = cp_msg.substring(2);
+
         out += wl('Message ID (hex)', id_hex);
         out += wl('Message ID', id);
 
         if (id == 20 || id == 21) {
-          let asset_hex = cp_msg.substring(2, 18);
+          let asset_hex = cp_msg.substring(0, 16);
           let asset = BigInt('0x' + asset_hex).toString(10);
-          cp_msg = cp_msg.substring(18);
-          let q_hex = cp_msg.substring(0, 16);
-          let q = parseInt(q_hex, 16);
+          console.log(`asset_hex=${asset_hex}, asset=A${asset}`);
           cp_msg = cp_msg.substring(16);
+
+          let q_hex = cp_msg.substring(0, 16);
+          if (!/^[0-9a-fA-F]{16}$/.test(q_hex)) {
+            console.error(`Invalid q_hex format: ${q_hex}`);
+            out += wl('Error', `Invalid issuance quantity format: ${q_hex}`);
+            document.getElementById("output").innerHTML = out;
+            output2(hash);
+            return;
+          }
+          let q = Number(BigInt('0x' + q_hex));
+          console.log(`q_hex=${q_hex}, q=${q}`);
+          cp_msg = cp_msg.substring(16);
+
           let div_hex = cp_msg.substring(0, 2);
           let div = parseInt(div_hex, 16) ? true : false;
           cp_msg = cp_msg.substring(2);
+
           let lock_hex = cp_msg.substring(0, 2);
           let lock = parseInt(lock_hex, 16) ? true : false;
           cp_msg = cp_msg.substring(2);
+
           let reset_hex = cp_msg.substring(0, 2);
           let reset = parseInt(reset_hex, 16) ? true : false;
           cp_msg = cp_msg.substring(2);
@@ -286,6 +321,12 @@
             let len_subasset_hex = cp_msg.substring(0, 2);
             let len_subasset = parseInt(len_subasset_hex, 16);
             cp_msg = cp_msg.substring(2);
+            if (cp_msg.length < len_subasset * 2) {
+              out += wl('Error', `Invalid subasset length: ${len_subasset}, remaining cp_msg length: ${cp_msg.length}`);
+              document.getElementById("output").innerHTML = out;
+              output2(hash);
+              return;
+            }
             subasset_hex = cp_msg.substring(0, len_subasset * 2);
             subasset = hex_to_subasset(subasset_hex);
             cp_msg = cp_msg.substring(len_subasset * 2);
@@ -313,18 +354,31 @@
             out += await print_standard(descr, tx, 'A' + asset, '');
           }
         } else if (id == 22) {
-          let asset_hex = cp_msg.substring(2, 18);
+          let asset_hex = cp_msg.substring(0, 16);
           let asset = BigInt('0x' + asset_hex).toString(10);
-          cp_msg = cp_msg.substring(18);
-          let q_hex = cp_msg.substring(0, 16);
-          let q = parseInt(q_hex, 16);
+          console.log(`asset_hex=${asset_hex}, asset=A${asset}`);
           cp_msg = cp_msg.substring(16);
+
+          let q_hex = cp_msg.substring(0, 16);
+          if (!/^[0-9a-fA-F]{16}$/.test(q_hex)) {
+            console.error(`Invalid q_hex format: ${q_hex}`);
+            out += wl('Error', `Invalid issuance quantity format: ${q_hex}`);
+            document.getElementById("output").innerHTML = out;
+            output2(hash);
+            return;
+          }
+          let q = Number(BigInt('0x' + q_hex));
+          console.log(`q_hex=${q_hex}, q=${q}`);
+          cp_msg = cp_msg.substring(16);
+
           let div_hex = cp_msg.substring(0, 2);
           let div = parseInt(div_hex, 16) ? true : false;
           cp_msg = cp_msg.substring(2);
+
           let lock_hex = cp_msg.substring(0, 2);
           let lock = parseInt(lock_hex, 16) ? true : false;
           cp_msg = cp_msg.substring(2);
+
           let reset_hex = cp_msg.substring(0, 2);
           let reset = parseInt(reset_hex, 16) ? true : false;
           cp_msg = cp_msg.substring(2);
@@ -364,7 +418,7 @@
     }
 
     function wl(title, info) {
-      return title.padEnd(18, ' ') + ' ' + chunk(String(info), '<br>' + ''.padEnd(19, ' '), 96) + '<br>';
+      return `<div class="output-row"><span class="output-label">${title}</span><span class="output-value">${chunk(String(info), '<br>', 96)}</span></div>`;
     }
 
     function chunk(str, sep, n) {
@@ -479,7 +533,6 @@
     async function print_standard(descr, tx, assetOrCPID, cp_msg) {
       let out = '';
       if (descr.toLowerCase().startsWith('stamp:')) {
-        // Handle Classic Stamps (ID 20 or 21)
         if (/^[a-zA-Z0-9+\/=]+$/.test(descr.substr(6))) {
           out += wl('Standard', 'STAMP (Classic)');
           let image = descr.slice(6).trim();
@@ -488,7 +541,6 @@
           try {
             let decoded = atob(image);
             console.log(`Decoded Classic stamp starts with: ${decoded.slice(0, 50)}...`);
-            // Simplified file type detection: check for image formats, default to HTML
             if (image.slice(0, 6) === 'R0lGOD') {
               file_type = 'gif';
               console.log('Detected GIF in Classic stamp');
@@ -508,21 +560,20 @@
 
             out += wl('Asset', assetOrCPID);
             out += wl('MIME Type', file_type === 'html' ? 'text/html' : `image/${file_type}`);
-            out += `Description           <details><summary>Base64: (click to expand/collapse)</summary><pre style="white-space: pre-wrap; word-wrap: break-word; max-width: 900px;">STAMP:${image}</pre></details><br>`;
+            out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${image}</pre></details></span></div><br>`;
             let dimensions = await getImageDimensions(image, file_type);
             out += wl('Dimensions', dimensions);
 
             if (file_type === 'html') {
-              out += `<iframe style="width:300px;height:300px;border:1px solid #000;" src="data:text/html;base64,${image}"></iframe><br>`;
+              out += `<iframe class="stamp-iframe" src="data:text/html;base64,${image}"></iframe><br>`;
             } else {
-              out += `<img style="image-rendering:pixelated" src="data:image/${file_type};base64,${image}" /><br>`;
+              out += `<img class="stamp-image" src="data:image/${file_type};base64,${image}" /><br>`;
             }
           } catch (e) {
             out += wl('Error', 'Invalid base64 data for Classic STAMP: ' + e.message);
             console.error(`Base64 decode error in Classic stamp: ${e.message}, image=${image.slice(0, 50)}...`);
           }
         } else {
-          // Handle Olga Stamps (ID 22)
           out += wl('Standard', 'STAMP (OLGA)');
           let hex = '';
           let dust = 0;
@@ -540,7 +591,6 @@
               let file_size = parseInt(file_size_hex, 16);
               console.log(`File size hex=${file_size_hex}, file_size=${file_size}, hex length=${hex.length}`);
               if (isNaN(file_size) || file_size <= 0 || hex.length < file_size * 2 + 4) {
-                // Try Classic stamp parsing using descr
                 let descr = hex2a(hex);
                 descr = decodeURIComponent(escape(descr));
                 console.log(`Invalid file size, attempting Classic stamp parsing: descr=${descr}`);
@@ -590,18 +640,18 @@
                   console.log('Detected HTML in Olga stamp (default)');
                 }
 
-                out += wl('File size (int)', file_size);
+                out += wl('File size (bytes)', file_size);
                 out += wl('Burned (sat)', dust);
                 out += wl('Burned (btc)', (dust / 100000000).toFixed(8));
                 out += wl('Asset', assetOrCPID);
                 out += wl('MIME Type', file_type === 'html' ? 'text/html' : `image/${file_type}`);
-                out += `Description           <details><summary>STAMP: (click to expand/collapse)</summary><pre style="white-space: pre-wrap; word-wrap: break-word; max-width: 900px;">STAMP:${base64}</pre></details><br>`;
+                out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>STAMP: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${base64}</pre></details></span></div><br>`;
                 let dimensions = await getImageDimensions(base64, file_type);
                 out += wl('Dimensions', dimensions);
                 if (file_type === 'html') {
-                  out += `<iframe style="width:300px;height:300px;border:1px solid #000;" src="data:text/html;base64,${base64}"></iframe><br>`;
+                  out += `<iframe class="stamp-iframe" src="data:text/html;base64,${base64}"></iframe><br>`;
                 } else {
-                  out += `<img style="image-rendering:pixelated" src="data:image/${file_type};base64,${base64}" /><br>`;
+                  out += `<img class="stamp-image" src="data:image/${file_type};base64,${base64}" /><br>`;
                 }
               } catch (e) {
                 out += wl('Error', 'Invalid base64 data for OLGA STAMP: ' + e.message);
@@ -664,18 +714,17 @@
                 console.log('Detected HTML in P2WSH (default)');
               }
 
-              out += wl('File size (int)', file_size);
+              out += wl('File size (byte)', file_size);
               out += wl('Burned (sat)', dust);
               out += wl('Burned (btc)', (dust / 100000000).toFixed(8));
-              out += wl('Asset', assetOrCPID);
               out += wl('MIME Type', file_type === 'html' ? 'text/html' : `image/${file_type}`);
-              out += `Description           <details><summary>STAMP: (click to expand/collapse)</summary><pre style="white-space: pre-wrap; word-wrap: break-word; max-width: 900px;">STAMP:${base64}</pre></details><br>`;
+              out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${base64}</pre></details></span></div><br>`;
               let dimensions = await getImageDimensions(base64, file_type);
               out += wl('Dimensions', dimensions);
               if (file_type === 'html') {
-                out += `<iframe style="width:300px;height:300px;border:1px solid #000;" src="data:text/html;base64,${base64}"></iframe><br>`;
+                out += `<iframe class="stamp-iframe" src="data:text/html;base64,${base64}"></iframe><br>`;
               } else {
-                out += `<img style="image-rendering:pixelated" src="data:image/${file_type};base64,${base64}" /><br>`;
+                out += `<img class="stamp-image" src="data:image/${file_type};base64,${base64}" /><br>`;
               }
             } catch (e) {
               out += wl('Error', 'Invalid base64 data for OLGA STAMP: ' + e.message);
@@ -689,73 +738,180 @@
   </script>
 
   <style>
-    #content {
-      font-family: Helvetica, sans-serif;
-      font-size: 16px;
-      margin: auto;
-      max-width: 1000px;
-      border: 3px solid #aaa;
-      border-radius: 12px;
-      background-color: #ccc;
-      padding: 20px;
-      text-align: left;
-    }
+body {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+  }
 
-    #output {
-      font-family: courier, consolas, monospace;
-      font-size: 14px;
-      white-space: pre;
-      image-rendering: pixelated;
-    }
+  #content {
+    max-width: 100%;
+    padding: 1.5rem;
+    background-color: #BFBFBF;
+    box-sizing: border-box;
+    overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    max-height: 100vh; /* Optional: ensures scrolling */
+  }
+
+  #content::-webkit-scrollbar {
+    display: none;
+  }
 
     h1 {
-      font-size: 28px;
-      margin-top: -4px;
+      font-size: clamp(1.5rem, 5vw, 1.8rem);
+      margin: 0 0 1rem;
+      text-align: center;
     }
 
     p {
-      font-size: 16px;
+      font-size: clamp(0.9rem, 4vw, 1rem);
+      margin: 0.5rem 0;
+      line-height: 1.5;
     }
 
-    input[type=text] {
-      width: 85%;
-      padding:3px;
+    #txid {
+      width: 100%;
+      padding: 0.75rem;
+      font-size: 1rem;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      box-sizing: border-box;
+      margin-bottom: 0.5rem;
     }
 
     input[type=submit] {
-      width: 8em;
-      margin-top: 10px;
-      padding:2px;
+      width: 100%;
+      padding: 0.75rem;
+      font-size: 1rem;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background-color 0.2s;
     }
 
-    img {
-      image-rendering: crisp-edges;
-      width: 300px;
+    input[type=submit]:hover {
+      background-color: #0056b3;
     }
 
-    iframe {
+    #output {
+      font-size: clamp(1rem, 3.5vw, 1.2rem);
+      margin: 1rem 1rem;
+    }
+
+    .output-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.3rem;
+    }
+
+    .output-label {
+      flex: 0 0 20%;
+      font-weight: bold;
+      text-align: left;
+    }
+
+    .output-value {
+      flex: 0 0 75%;
+      text-align: left;
+      word-break: break-word;
+      overflow-wrap: break-word;
+    }
+
+    .section-title {
+      font-weight: bold;
+      margin: 1rem 0 0.5rem;
+      font-size: clamp(0.9rem, 4vw, 1rem);
+    }
+
+    .stamp-image, .stamp-iframe {
+      width: 250px;
+      height: auto;
       border: 1px solid #000;
-      height: 300px;
-      width: 300px;
+      margin: 1rem 0;
+      display: block;
+    }
+
+    .stamp-image {
+      image-rendering: pixelated;
+    }
+
+    .stamp-iframe {
+      aspect-ratio: 1/1;
     }
 
     details {
       cursor: pointer;
-      margin-top: 5px;
+      margin: 0.5rem 0;
     }
 
     summary {
-      font-family: courier, consolas, monospace;
-      font-size: 14px;
+      font-size: clamp(0.8rem, 3.5vw, 0.9rem);
     }
 
     pre {
-      font-family: courier, consolas, monospace;
-      font-size: 14px;
-      margin: 10px 0;
-      padding: 10px;
-      border: 2px solid #ddd;
+      font-size: clamp(0.8rem, 3vw, 0.8rem);
+      margin: 0.5rem 0;
+      padding: 0.75rem;
+      border: 1px solid #ddd;
       border-radius: 4px;
+      white-space: pre-wrap;
+      overflow-x: auto;
+    }
+
+    pre.base64-content {
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+      max-width: 100%;
+    }
+
+    #output2 a {
+      font-size: clamp(0.9rem, 4vw, 1rem);
+      margin-right: 0.5rem;
+    }
+
+    #footer {
+      font-size: clamp(0.8rem, 3.5vw, 0.9rem);
+      text-align: center;
+      margin-top: 5rem;
+    }
+
+    @media (max-width: 600px) {
+      
+    #output {
+      font-size: clamp(0.9rem, 3.5vw, 0.9rem);
+      margin: 0.5rem 0.5rem;
+    }
+    
+          pre {
+      font-size: clamp(0.6rem, 3vw, 0.6rem);
+      margin: 0.5rem 0;
+      padding: 0.75rem;
+    }
+
+      h1 {
+        font-size: clamp(1.2rem, 4.5vw, 1.5rem);
+      }
+      
+      p {
+      font-size: clamp(0.8rem, 3.5vw, 0.8rem);
+    }
+
+      input[type=submit] {
+        padding: 0.5rem;
+      }
+
+      .output-label {
+        flex: 0 0 40%;
+      }
+
+      .output-value {
+        flex: 0 0 65%;
+      }
     }
   </style>
 </head>
@@ -765,28 +921,33 @@
   <p>Enter a Bitcoin transaction ID to decode CP/Stamps Data.</p>
   <form onsubmit="event.preventDefault(); get_json(document.getElementById('txid').value);">
     <p>
-      <input type="text" id="txid" name="txid" placeholder="Enter Bitcoin transaction ID"><br>
+      <input type="text" id="txid" name="txid" placeholder="Enter Bitcoin transaction ID" aria-label="Bitcoin transaction ID">
       <input type="submit" value="Submit">
-    </p>
+    </p><br>
   </form>
-  <p>This Stamp decoder is a modified version of Counterparty Decoder made by JP that decodes the tx details from the BlockCypher API and extracts STAMP (Classic and Olga) data</p><br>
-  <p><b>Note:</b> This updated decoder handles PNG, GIF, SVG+XML, and limited TEXT/HTML mime file types for both Classic and Olga STAMPs.</p>
-  
-<pre>
-  ____ ___ _____ ____ ___ ___ _   _         ____ _____  _    __  __ ____  ____  
- | __ )_ _|_   _/ ___/ _ \_ _| \ | |       / ___|_   _|/ \  |  \/  |  _ \/ ___| 
- |  _ \| |  | || |  | | | | ||  \| |       \___ \ | | / _ \ | |\/| | |_) \___ \ 
- | |_) | |  | || |__| |_| | || |\  |        ___) || |/ ___ \| |  | |  __/ ___) |
- |____/___| |_| \____\___/___|_| \_|       |____/ |_/_/   \_\_|  |_|_|   |____/ 
-                                                                                                                                                       
-</pre>
-      <div id="output"> </div>
-      <div id="output2"> </div>
-      <div id="footer"><br><br>
-        <p><i>Original Counterparty Decoder from JP<br>
-      For more info, read <a href="https://jpjanssen.com/how-to-reverse-engineer-counterparty-txs/">blog post</a>.</i><br><br><br>
+  <p>This Stamp decoder is a remix of JP’s Counterparty Decoder—it raids the BlockCypher API, grabs transaction goodies, and pulls out STAMP data like a blockchain treasure hunter.</p> <br>
+  <p><b>Note:</b> Now supports PNG, GIF, SVG+XML, and limited TEXT/HTML—Classic and Olga STAMPs included, no MIME left behind..</p><br><br>
+  <pre>
+ ____ ___ _____ ____ ___ ___ _   _        
+| __ )_ _|_   _/ ___/ _ \_ _| \ | |      
+|  _ \| |  | || |  | | | | ||  \| |      
+| |_) | |  | || |__| |_| | || |\  |    
+|____/___| |_| \____\___/___|_| \_|    
+ 
+ ____ _____  _    __  __ ____  ____
+/ ___|_   _|/ \  |  \/  |  _ \/ ___| 
+\___ \ | | / _ \ | |\/| | |_) \___ \ 
+ ___) || |/ ___ \| |  | |  __/ ___) |
+|____/ |_/_/   \_\_|  |_|_|   |____/ 
+  </pre>
+  <div id="output"></div>
+  <div id="output2"></div>
+  <div id="footer">
+    <p><i>Original Counterparty Decoder from JP<br>
+    For more info, read <a href="https://jpjanssen.com/how-to-reverse-engineer-counterparty-txs/">blog post</a>.</i><br><br>
     Donate BTC, STAMP or SRC20 Tokens:<br>
-    NSID Wallet (TBD)</p>
+      NSID Wallet (TBD)</p>
+  </div>
 </div>
 </body>
 </html>
