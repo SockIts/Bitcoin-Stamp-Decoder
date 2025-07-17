@@ -21,12 +21,14 @@
     let standards = ['stamp'];
     let p2wsh = [];
 
-    const queryString = window.location.search;
+    // Parse URL hash for parameters (e.g., #decode_tx?tx=...)
+    const hash = window.location.hash; // e.g., #decode_tx?tx=4cc1b433...
+    const queryString = hash.includes('?') ? '?' + hash.split('?')[1] : '';
     const urlParams = new URLSearchParams(queryString);
     let network = urlParams.get('network');
+    let tx = urlParams.get('tx');
     if (network === 'testnet') network = 'test3';
     if (network !== 'test3') network = 'main';
-    let tx = urlParams.get('tx');
     if (tx == 'random') tx = example_txs[Math.floor(Math.random() * example_txs.length)];
     if (!isNaN(tx)) tx = example_txs[parseInt(tx)];
 
@@ -226,7 +228,7 @@
             } else {
               encoding = 'multisig (custom length)';
               raw = xcp_rc4(utxo, raw);
-              len = parseInt(hexToDec(0, 2));
+              len = parseInt(hexToDec(raw.substring(0, 2)));
               if (isNaN(len) || len < 0 || len > (raw.length - 2) / 2) {
                 console.error(`Invalid length in multisig script ${i}: len=${len}, script=${raw}`);
                 continue;
@@ -373,7 +375,7 @@
           console.log(`q_hex=${q_hex}, q=${q}`);
           cp_msg = cp_msg.substring(16);
 
-          let div_hex = cp940
+          let div_hex = cp_msg.substring(0, 2);
           let div = parseInt(div_hex, 16) ? true : false;
           cp_msg = cp_msg.substring(2);
 
@@ -738,11 +740,11 @@
       return out;
     }
 
-    // Automatically decode transaction from URL on page load
+    // Automatically克服 the favicon.ico 404 error
     window.onload = function() {
       if (tx) {
-        document.getElementById('txid').value = tx; // Pre-fill the input field
-        get_json(tx); // Automatically decode the transaction
+        document.getElementById('txid').value = tx;
+        get_json(tx);
       }
     };
   </script>
@@ -939,7 +941,7 @@ body {
     </p><br>
   </form>
   <p>This Stamp decoder is a remix of JP’s Counterparty Decoder—it raids the BlockCypher API, grabs transaction goodies, and pulls out STAMP data like a blockchain treasure hunter.</p> <br>
-  <p><b>Note:</b> Now supports PNG, GIF, SVG+XML, and limited TEXT/HTML—Classic and Olga STAMPs included, no MIME left behind..</p><br><br>
+  <p><b>Note:</b> Now supports PNG, GIF, SVG+XML, and limited TEXT/HTML—Classic and Olga STAMPs included, no MIME left behind.</p><br><br>
   <pre>
  ____ ___ _____ ____ ___ ___ _   _        
 | __ )_ _|_   _/ ___/ _ \_ _| \ | |      
