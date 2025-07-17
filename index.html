@@ -1,10 +1,11 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>STAMP Decoder</title>
-  <script type="text/javascript" src="js/lib/sha256.js"></script>
+  <script type="text/javascript" src="https://github.com/SockIts/Bitcoin-Stamp-Decoder/blob/main/sha256.js"></script>
   <script>
     let example_txs = [
       '9e99825880aa7cac75629ec01de28b419f691503af2c4f51b4c8b939fd37e310', //Classic_PNG
@@ -135,289 +136,288 @@
     }
 
     async function decode(json, rawHex, tx) {
-      try {
-        json = JSON.parse(JSON.stringify(json));
-        let hash = json['hash'];
-        let block_height = json['block_height'] || 'unknown';
-        let block_time = json['received'] ? new Date(json['received']).toLocaleString() : 'unknown';
-        let from_addr = json['addresses'] && json['addresses'][0] ? json['addresses'][0] : 'unknown';
-        let utxo = json['inputs'] && json['inputs'][0]['prev_hash'] ? json['inputs'][0]['prev_hash'] : 'unknown';
-        let first_send_sat = json['outputs'] && json['outputs'][0]['value'] ? json['outputs'][0]['value'] : 0;
-        let script_type = [];
-        let script = [];
-        let to_addr = [];
-        p2wsh = [];
+  try {
+    json = JSON.parse(JSON.stringify(json));
+    let hash = json['hash'];
+    let block_height = json['block_height'] || 'unknown';
+    let block_time = json['received'] ? new Date(json['received']).toLocaleString() : 'unknown';
+    let from_addr = json['addresses'] && json['addresses'][0] ? json['addresses'][0] : 'unknown';
+    let utxo = json['inputs'] && json['inputs'][0]['prev_hash'] ? json['inputs'][0]['prev_hash'] : 'unknown';
+    let first_send_sat = json['outputs'] && json['outputs'][0]['value'] ? json['outputs'][0]['value'] : 0;
+    let script_type = [];
+    let script = [];
+    let to_addr = [];
+    p2wsh = [];
 
-        for (const x of json['outputs'] || []) {
-          let type = x['script_type'];
-          script_type.push(type);
-          if (type == 'pay-to-pubkey-hash') {
-            script.push('0');
-            to_addr.push(x['addresses'] && x['addresses'][0] ? x['addresses'][0] : 'unknown');
-          } else if (type == 'pay-to-multi-pubkey-hash') {
-            script.push(x['script']);
-            to_addr.push('0');
-          } else if (type == 'null-data') {
-            script.push(x['data_hex']);
-            to_addr.push('0');
-          } else if (type == 'pay-to-witness-script-hash') {
-            script.push(x['script']);
-            p2wsh.push([x['script'], x['value']]);
-          } else {
-            script.push('?');
-            to_addr.push('?');
-          }
-        }
-
-        let recipient = script_type[0] == 'pay-to-pubkey-hash' ? to_addr[0] : '0';
-        let cp_msg = '';
-        let encoding = '';
-        let out = '';
-
-        for (let i = 0; i < script.length; i++) {
-          if (script_type[i] == 'null-data') {
-            encoding = 'op_return';
-            let raw = script[i];
-            raw = xcp_rc4(utxo, raw);
-            if (raw.substring(0, 16) == '434e545250525459') {
-              cp_msg += raw;
-            } else {
-              out += wl('Error', 'Invalid RC4 decryption for OP_RETURN: ' + raw.substring(0, 16));
-            }
-          }
-          if (script_type[i] == 'pay-to-multi-pubkey-hash') {
-            let raw = script[i];
-            let len = 0;
-            if (raw.length == 142) {
-              encoding = 'op_return';
-              let len_hex = raw.substring(72, 74);
-              len = parseInt(hexToDec(len_hex));
-              if (isNaN(len) || len < 0 || len > (raw.length - 74) / 2) {
-                console.error(`Invalid length in multisig script ${i}: len=${len}, script=${raw}`);
-                continue;
-              }
-              raw = raw.substring(74, 74 + (len * 2));
-              if (!/^[0-9a-fA-F]+$/.test(raw)) {
-                console.error(`Invalid hex data in multisig script ${i}: ${raw}`);
-                continue;
-              }
-              console.log(`Multisig output ${i} (length ${script[i].length}): len=${len}, raw=${raw}`);
-              cp_msg += raw;
-            } else if (raw.length == 210) {
-              encoding = 'multisig';
-              raw = raw.substring(6, 68) + raw.substring(74, 136);
-              raw = xcp_rc4(utxo, raw);
-              len = parseInt(hexToDec(raw.substring(0, 2)));
-              if (isNaN(len) || len < 0 || len > (raw.length - 2) / 2) {
-                console.error(`Invalid length in multisig script ${i}: len=${len}, script=${raw}`);
-                continue;
-              }
-              raw = raw.substring(2, 2 + (len * 2));
-              if (!/^[0-9a-fA-F]+$/.test(raw)) {
-                console.error(`Invalid hex data in multisig script ${i}: ${raw}`);
-                continue;
-              }
-              console.log(`Multisig output ${i} (length ${script[i].length}): len=${len}, raw=${raw}`);
-              if (cp_msg == '') {
-                cp_msg += raw;
-              } else {
-                if (raw.substring(0, 16) == '434e545250525459') {
-                  raw = raw.substring(16);
-                }
-                cp_msg += raw;
-              }
-            } else {
-              encoding = 'multisig (custom length)';
-              raw = xcp_rc4(utxo, raw);
-              len = parseInt(hexToDec(raw.substring(0, 2)));
-              if (isNaN(len) || len < 0 || len > (raw.length - 2) / 2) {
-                console.error(`Invalid length in multisig script ${i}: len=${len}, script=${raw}`);
-                continue;
-              }
-              raw = raw.substring(2, 2 + (len * 2));
-              if (!/^[0-9a-fA-F]+$/.test(raw)) {
-                console.error(`Invalid hex data in multisig script ${i}: ${raw}`);
-                continue;
-              }
-              console.log(`Multisig output ${i} (length ${script[i].length}): len=${len}, raw=${raw}`);
-              if (cp_msg == '') {
-                cp_msg += raw;
-              } else {
-                if (raw.substring(0, 16) == '434e545250525459') {
-                  raw = raw.substring(16);
-                }
-                cp_msg += raw;
-              }
-            }
-          }
-        }
-        console.log(`Final cp_msg: ${cp_msg}`);
-
-        out += '<div class="section-title">BITCOIN DATA</div>';
-        out += wl('Tx ID', hash);
-        out += wl('Block #', block_height);
-        out += wl('Block Time', block_time);
-        out += wl('Address', from_addr);
-        out += '<div class="section-title">COUNTERPARTY DATA</div>';
-
-        if (cp_msg.substring(0, 16) != '434e545250525459') {
-          out += wl('Error', 'No valid Counterparty data found');
-          if (p2wsh.length > 0) {
-            console.log('P2WSH outputs found; attempting OLGA STAMP decoding');
-            out += await print_standard('stamp:', tx, 'A' + BigInt('0x' + cp_msg.substring(2, 18)).toString(10), cp_msg);
-          } else {
-            out += wl('Error', 'No valid Counterparty data or P2WSH outputs found');
-          }
-          document.getElementById("output").innerHTML = out;
-          output2(hash);
-          return;
-        }
-
-        cp_msg = cp_msg.substring(16);
-        console.log(`After removing CNTRPRTY: cp_msg=${cp_msg}`);
-        if (cp_msg.length < 36) {
-          out += wl('Error', `Invalid Counterparty message length: ${cp_msg.length} (expected at least 36)`);
-          document.getElementById("output").innerHTML = out;
-          output2(hash);
-          return;
-        }
-
-        let id_hex = cp_msg.substring(0, 2);
-        let id = parseInt(id_hex, 16);
-        console.log(`id_hex=${id_hex}, id=${id}`);
-        cp_msg = cp_msg.substring(2);
-
-        out += wl('Message ID (hex)', id_hex);
-        out += wl('Message ID', id);
-
-        if (id == 20 || (id == 21 && block_height >= 753500) || (id == 23 && block_height >= 819300)) {
-          let asset_hex = cp_msg.substring(0, 16);
-          let asset = BigInt('0x' + asset_hex).toString(10);
-          console.log(`asset_hex=${asset_hex}, asset=A${asset}`);
-          cp_msg = cp_msg.substring(16);
-
-          let q_hex = cp_msg.substring(0, 16);
-          if (!/^[0-9a-fA-F]{16}$/.test(q_hex)) {
-            console.error(`Invalid q_hex format: ${q_hex}`);
-            out += wl('Error', `Invalid issuance quantity format: ${q_hex}`);
-            document.getElementById("output").innerHTML = out;
-            output2(hash);
-            return;
-          }
-          let q = Number(BigInt('0x' + q_hex));
-          console.log(`q_hex=${q_hex}, q=${q}`);
-          cp_msg = cp_msg.substring(16);
-
-          let div_hex = cp_msg.substring(0, 2);
-          let div = parseInt(div_hex, 16) ? true : false;
-          cp_msg = cp_msg.substring(2);
-
-          let lock_hex = cp_msg.substring(0, 2);
-          let lock = parseInt(lock_hex, 16) ? true : false;
-          cp_msg = cp_msg.substring(2);
-
-          let reset_hex = cp_msg.substring(0, 2);
-          let reset = parseInt(reset_hex, 16) ? true : false;
-          cp_msg = cp_msg.substring(2);
-
-          let subasset_hex = '';
-          let subasset = '';
-          let descr_hex = '';
-          let descr = '';
-          if (id == 21 || id == 23) {
-            let len_subasset_hex = cp_msg.substring(0, 2);
-            let len_subasset = parseInt(len_subasset_hex, 16);
-            cp_msg = cp_msg.substring(2);
-            if (cp_msg.length < len_subasset * 2) {
-              out += wl('Error', `Invalid subasset length: ${len_subasset}, remaining cp_msg length: ${cp_msg.length}`);
-              document.getElementById("output").innerHTML = out;
-              output2(hash);
-              return;
-            }
-            subasset_hex = cp_msg.substring(0, len_subasset * 2);
-            subasset = hex_to_subasset(subasset_hex);
-            cp_msg = cp_msg.substring(len_subasset * 2);
-            descr_hex = cp_msg;
-            descr = hex2a(descr_hex);
-            descr = decodeURIComponent(escape(descr));
-          }
-
-          out += wl('Type', id == 20 ? 'Issuance' : 'Issuance (Subasset)');
-          if (recipient != '0') {
-            out += wl('Transfer To', recipient);
-            out += wl('Dust (sat)', first_send_sat);
-            out += wl('Dust (btc)', (first_send_sat / 100000000).toFixed(8));
-          }
-          out += wl('Asset', 'A' + asset);
-          out += wl('Issuance', q);
-          out += wl('Divisible', div);
-          out += wl('Lock', lock);
-          out += wl('Reset', reset);
-          if (id == 21 || id == 23) {
-            out += wl('Subasset', subasset);
-            out += wl('Subasset (hex)', subasset_hex);
-            out += wl('Description', descr);
-            out += wl('Description (hex)', descr_hex);
-          }
-
-          if (id == 23 && descr.toLowerCase().startsWith('stamp:')) {
-            out += await print_standard('stamp:', tx, 'A' + asset, p2wsh.length > 0 ? '' : cp_msg);
-          } else if (descr.toLowerCase().startsWith('stamp:')) {
-            out += await print_standard(descr, tx, 'A' + asset, '');
-          }
-        } else if (id == 22) {
-          let asset_hex = cp_msg.substring(0, 16);
-          let asset = BigInt('0x' + asset_hex).toString(10);
-          console.log(`asset_hex=${asset_hex}, asset=A${asset}`);
-          cp_msg = cp_msg.substring(16);
-
-          let q_hex = cp_msg.substring(0, 16);
-          if (!/^[0-9a-fA-F]{16}$/.test(q_hex)) {
-            console.error(`Invalid q_hex format: ${q_hex}`);
-            out += wl('Error', `Invalid issuance quantity format: ${q_hex}`);
-            document.getElementById("output").innerHTML = out;
-            output2(hash);
-            return;
-          }
-          let q = Number(BigInt('0x' + q_hex));
-          console.log(`q_hex=${q_hex}, q=${q}`);
-          cp_msg = cp_msg.substring(16);
-
-          let div_hex = cp_msg.substring(0, 2);
-          let div = parseInt(div_hex, 16) ? true : false;
-          cp_msg = cp_msg.substring(2);
-
-          let lock_hex = cp_msg.substring(0, 2);
-          let lock = parseInt(lock_hex, 16) ? true : false;
-          cp_msg = cp_msg.substring(2);
-
-          let reset_hex = cp_msg.substring(0, 2);
-          let reset = parseInt(reset_hex, 16) ? true : false;
-          cp_msg = cp_msg.substring(2);
-
-          out += wl('Type', 'Issuance');
-          out += wl('Asset', 'A' + asset);
-          out += wl('Issuance', q);
-          out += wl('Divisible', div);
-          out += wl('Lock', lock);
-          out += wl('Reset', reset);
-
-          if (p2wsh.length > 0) {
-            out += await print_standard('stamp:', tx, 'A' + asset, '');
-          } else {
-            out += await print_standard('stamp:', tx, 'A' + asset, cp_msg);
-          }
-        } else {
-          out += wl('Error', 'Not an Issuance transaction! Message ID: ' + id);
-        }
-
-        document.getElementById("output").innerHTML = out;
-        output2(hash);
-      } catch (e) {
-        console.error('Error in decode:', e);
-        document.getElementById("output").innerHTML = wl('Error', 'Failed to decode transaction: ' + e.message);
+    for (const x of json['outputs'] || []) {
+      let type = x['script_type'];
+      script_type.push(type);
+      if (type == 'pay-to-pubkey-hash') {
+        script.push('0');
+        to_addr.push(x['addresses'] && x['addresses'][0] ? x['addresses'][0] : 'unknown');
+      } else if (type == 'pay-to-multi-pubkey-hash') {
+        script.push(x['script']);
+        to_addr.push('0');
+      } else if (type == 'null-data') {
+        script.push(x['data_hex']);
+        to_addr.push('0');
+      } else if (type == 'pay-to-witness-script-hash') {
+        script.push(x['script']);
+        p2wsh.push([x['script'], x['value']]);
+      } else {
+        script.push('?');
+        to_addr.push('?');
       }
     }
+
+    let recipient = script_type[0] == 'pay-to-pubkey-hash' ? to_addr[0] : '0';
+    let cp_msg = '';
+    let encoding = '';
+    let out = '';
+
+    for (let i = 0; i < script.length; i++) {
+      if (script_type[i] == 'null-data') {
+        encoding = 'op_return';
+        let raw = script[i];
+        raw = xcp_rc4(utxo, raw);
+        if (raw.substring(0, 16) == '434e545250525459') {
+          cp_msg += raw;
+        } else {
+          out += wl('Error', 'Invalid RC4 decryption for OP_RETURN: ' + raw.substring(0, 16));
+        }
+      }
+      if (script_type[i] == 'pay-to-multi-pubkey-hash') {
+        let raw = script[i];
+        let len = 0;
+        if (raw.length == 142) {
+          encoding = 'op_return';
+          let len_hex = raw.substring(72, 74);
+          len = parseInt(hexToDec(len_hex));
+          if (isNaN(len) || len < 0 || len > (raw.length - 74) / 2) {
+            console.error(`Invalid length in multisig script ${i}: len=${len}, script=${raw}`);
+            continue;
+          }
+          raw = raw.substring(74, 74 + (len * 2));
+          if (!/^[0-9a-fA-F]+$/.test(raw)) {
+            console.error(`Invalid hex data in multisig script ${i}: ${raw}`);
+            continue;
+          }
+          console.log(`Multisig output ${i} (length ${script[i].length}): len=${len}, raw=${raw}`);
+          cp_msg += raw;
+        } else if (raw.length == 210) {
+          encoding = 'multisig';
+          raw = raw.substring(6, 68) + raw.substring(74, 136);
+          raw = xcp_rc4(utxo, raw);
+          len = parseInt(hexToDec(raw.substring(0, 2)));
+          if (isNaN(len) || len < 0 || len > (raw.length - 2) / 2) {
+            console.error(`Invalid length in multisig script ${i}: len=${len}, script=${raw}`);
+            continue;
+          }
+          raw = raw.substring(2, 2 + (len * 2));
+          if (!/^[0-9a-fA-F]+$/.test(raw)) {
+            console.error(`Invalid hex data in multisig script ${i}: ${raw}`);
+            continue;
+          }
+          console.log(`Multisig output ${i} (length ${script[i].length}): len=${len}, raw=${raw}`);
+          if (cp_msg == '') {
+            cp_msg += raw;
+          } else {
+            if (raw.substring(0, 16) == '434e545250525459') {
+              raw = raw.substring(16);
+            }
+            cp_msg += raw;
+          }
+        } else {
+          encoding = 'multisig (custom length)';
+          raw = xcp_rc4(utxo, raw);
+          len = parseInt(hexToDec(raw.substring(0, 2)));
+          if (isNaN(len) || len < 0 || len > (raw.length - 2) / 2) {
+            console.error(`Invalid length in multisig script ${i}: len=${len}, script=${raw}`);
+            continue;
+          }
+          raw = raw.substring(2, 2 + (len * 2));
+          if (!/^[0-9a-fA-F]+$/.test(raw)) {
+            console.error(`Invalid hex data in multisig script ${i}: ${raw}`);
+            continue;
+          }
+          console.log(`Multisig output ${i} (length ${script[i].length}): len=${len}, raw=${raw}`);
+          if (cp_msg == '') {
+            cp_msg += raw;
+          } else {
+            if (raw.substring(0, 16) == '434e545250525459') {
+              raw = raw.substring(16);
+            }
+            cp_msg += raw;
+          }
+        }
+      }
+    }
+    console.log(`Final cp_msg: ${cp_msg}`);
+
+    out += '<div class="section-title">BITCOIN DATA</div>';
+    out += wl('Tx ID', hash);
+    out += wl('Block #', block_height);
+    out += wl('Block Time', block_time);
+    out += wl('Address', from_addr);
+    out += '<div class="section-title">COUNTERPARTY DATA</div>';
+
+    if (cp_msg.substring(0, 16) != '434e545250525459') {
+      out += wl('Error', 'No valid Counterparty data found');
+      if (p2wsh.length > 0) {
+        console.log('P2WSH outputs found; attempting OLGA STAMP decoding');
+        out += await print_standard('stamp:', tx, 'A' + BigInt('0x' + cp_msg.substring(2, 18)).toString(10), cp_msg);
+      } else {
+        out += wl('Error', 'No valid Counterparty data or P2WSH outputs found');
+      }
+      document.getElementById("output").innerHTML = out;
+      output2(hash);
+      return;
+    }
+
+    cp_msg = cp_msg.substring(16);
+    console.log(`After removing CNTRPRTY: cp_msg=${cp_msg}`);
+    if (cp_msg.length < 36) {
+      out += wl('Error', `Invalid Counterparty message length: ${cp_msg.length} (expected at least 36)`);
+      document.getElementById("output").innerHTML = out;
+      output2(hash);
+      return;
+    }
+
+    let id_hex = cp_msg.substring(0, 2);
+    let id = parseInt(id_hex, 16);
+    console.log(`id_hex=${id_hex}, id=${id}`);
+    cp_msg = cp_msg.substring(2);
+
+    out += wl('Message ID (hex)', id_hex);
+    out += wl('Message ID', id);
+
+    if (id == 20 || (id == 21 && block_height >= 753500) || (id == 23 && block_height >= 819300)) {
+      let asset_hex = cp_msg.substring(0, 16);
+      let asset = BigInt('0x' + asset_hex).toString(10);
+      console.log(`asset_hex=${asset_hex}, asset=A${asset}`);
+      cp_msg = cp_msg.substring(16);
+
+      let q_hex = cp_msg.substring(0, 16);
+      if (!/^[0-9a-fA-F]{16}$/.test(q_hex)) {
+        console.error(`Invalid q_hex format: ${q_hex}`);
+        out += wl('Error', `Invalid issuance quantity format: ${q_hex}`);
+        document.getElementById("output").innerHTML = out;
+        output2(hash);
+        return;
+      }
+      let q = Number(BigInt('0x' + q_hex));
+      console.log(`q_hex=${q_hex}, q=${q}`);
+      cp_msg = cp_msg.substring(16);
+
+      let div_hex = cp_msg.substring(0, 2);
+      let div = parseInt(div_hex, 16) ? true : false;
+      cp_msg = cp_msg.substring(2);
+
+      let lock_hex = cp_msg.substring(0, 2);
+      let lock = parseInt(lock_hex, 16) ? true : false;
+      cp_msg = cp_msg.substring(2);
+
+      let reset_hex = cp_msg.substring(0, 2);
+      let reset = parseInt(reset_hex, 16) ? true : false;
+      cp_msg = cp_msg.substring(2);
+
+      let subasset_hex = '';
+      let subasset = '';
+      let descr_hex = cp_msg;
+      let descr = hex2a(descr_hex); // Use raw ASCII string for description
+      console.log(`Description (hex): ${descr_hex}`);
+      console.log(`Description (ASCII): ${descr.slice(0, 50)}...`);
+
+      out += wl('Type', id == 20 ? 'Issuance' : 'Issuance (Subasset)');
+      if (recipient != '0') {
+        out += wl('Transfer To', recipient);
+        out += wl('Dust (sat)', first_send_sat);
+        out += wl('Dust (btc)', (first_send_sat / 100000000).toFixed(8));
+      }
+      out += wl('Asset', 'A' + asset);
+      out += wl('Issuance', q);
+      out += wl('Divisible', div);
+      out += wl('Lock', lock);
+      out += wl('Reset', reset);
+      if (id == 21 || id == 23) {
+        let len_subasset_hex = cp_msg.substring(0, 2);
+        let len_subasset = parseInt(len_subasset_hex, 16);
+        cp_msg = cp_msg.substring(2);
+        if (cp_msg.length < len_subasset * 2) {
+          out += wl('Error', `Invalid subasset length: ${len_subasset}, remaining cp_msg length: ${cp_msg.length}`);
+          document.getElementById("output").innerHTML = out;
+          output2(hash);
+          return;
+        }
+        subasset_hex = cp_msg.substring(0, len_subasset * 2);
+        subasset = hex_to_subasset(subasset_hex);
+        cp_msg = cp_msg.substring(len_subasset * 2);
+        descr_hex = cp_msg;
+        descr = hex2a(descr_hex);
+        out += wl('Subasset', subasset);
+        out += wl('Subasset (hex)', subasset_hex);
+        out += wl('Description', descr);
+        out += wl('Description (hex)', descr_hex);
+      }
+
+      if (id == 23 && descr.toLowerCase().startsWith('stamp:')) {
+        out += await print_standard('stamp:', tx, 'A' + asset, p2wsh.length > 0 ? '' : cp_msg);
+      } else if (descr.toLowerCase().startsWith('stamp:')) {
+        out += await print_standard(descr, tx, 'A' + asset, '');
+      }
+    } else if (id == 22) {
+      let asset_hex = cp_msg.substring(0, 16);
+      let asset = BigInt('0x' + asset_hex).toString(10);
+      console.log(`asset_hex=${asset_hex}, asset=A${asset}`);
+      cp_msg = cp_msg.substring(16);
+
+      let q_hex = cp_msg.substring(0, 16);
+      if (!/^[0-9a-fA-F]{16}$/.test(q_hex)) {
+        console.error(`Invalid q_hex format: ${q_hex}`);
+        out += wl('Error', `Invalid issuance quantity format: ${q_hex}`);
+        document.getElementById("output").innerHTML = out;
+        output2(hash);
+        return;
+      }
+      let q = Number(BigInt('0x' + q_hex));
+      console.log(`q_hex=${q_hex}, q=${q}`);
+      cp_msg = cp_msg.substring(16);
+
+      let div_hex = cp_msg.substring(0, 2);
+      let div = parseInt(div_hex, 16) ? true : false;
+      cp_msg = cp_msg.substring(2);
+
+      let lock_hex = cp_msg.substring(0, 2);
+      let lock = parseInt(lock_hex, 16) ? true : false;
+      cp_msg = cp_msg.substring(2);
+
+      let reset_hex = cp_msg.substring(0, 2);
+      let reset = parseInt(reset_hex, 16) ? true : false;
+      cp_msg = cp_msg.substring(2);
+
+      out += wl('Type', 'Issuance');
+      out += wl('Asset', 'A' + asset);
+      out += wl('Issuance', q);
+      out += wl('Divisible', div);
+      out += wl('Lock', lock);
+      out += wl('Reset', reset);
+
+      if (p2wsh.length > 0) {
+        out += await print_standard('stamp:', tx, 'A' + asset, '');
+      } else {
+        out += await print_standard('stamp:', tx, 'A' + asset, cp_msg);
+      }
+    } else {
+      out += wl('Error', 'Not an Issuance transaction! Message ID: ' + id);
+    }
+
+    document.getElementById("output").innerHTML = out;
+    output2(hash);
+  } catch (e) {
+    console.error('Error in decode:', e);
+    document.getElementById("output").innerHTML = wl('Error', 'Failed to decode transaction: ' + e.message);
+  }
+}
 
     function output2(tx) {
       let out = '<br><br>';
