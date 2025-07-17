@@ -7,22 +7,23 @@
   <script type="text/javascript" src="js/lib/sha256.js"></script>
   <script>
     let example_txs = [
-      '9e99825880aa7cac75629ec01de28b419f691503af2c4f51b4c8b939fd37e310',
-      'c46c4e59f64cdcce78e6680079bf6ae9b4d976f07eba2797c02c4c602807b17e',
-      '703a8e43fbad456480a6a0820584ded924151278a09e1b832b3e11e2299d1a3a',
-      'ad891d1235b04110e6d174040de034760d1fa4c0a18437f169a1d1de34091ed3',
-      '9bfd550831fd3fde30a8d168e458340256b58b1e75ad109785d7ce5beb726946',
-      'c075e98ae365c809ccd2804c1487a799748399eeb9dd61708c814a5da34c9b78',
-      '27000ab9c75570204adc1b3a5e7820c482d99033fbb3aafb844c3a3ce8b063db',
-      '8c7c8efe339d10a981ae189c7c20851f1e2f10e0e8e6792a99dbe27e32b6b6a6',
-      '2cfdc5d737065aa5c5c9febde8a803b1e6ee44e47de0f2788f9dfc4d40f7ed71'
+      '9e99825880aa7cac75629ec01de28b419f691503af2c4f51b4c8b939fd37e310', //Classic_PNG
+      'c46c4e59f64cdcce78e6680079bf6ae9b4d976f07eba2797c02c4c602807b17e', //Classic_GIF
+      '703a8e43fbad456480a6a0820584ded924151278a09e1b832b3e11e2299d1a3a', //CLassic_SVG
+      'ad891d1235b04110e6d174040de034760d1fa4c0a18437f169a1d1de34091ed3', //Classic_HTML
+      '9bfd550831fd3fde30a8d168e458340256b58b1e75ad109785d7ce5beb726946', //Olga_PNG
+      'c075e98ae365c809ccd2804c1487a799748399eeb9dd61708c814a5da34c9b78', //Olga_GIF
+      '27000ab9c75570204adc1b3a5e7820c482d99033fbb3aafb844c3a3ce8b063db', //Olga_SVG
+      '8c7c8efe339d10a981ae189c7c20851f1e2f10e0e8e6792a99dbe27e32b6b6a6', //Olga_HTML
+      '2cfdc5d737065aa5c5c9febde8a803b1e6ee44e47de0f2788f9dfc4d40f7ed71', //Multisig
+      '55f8b7a158f0e4330e7a1db287c3495c1ee6c561262e2e8f490b8ae4c6d9fbe5'  //subasset
     ];
 
     let standards = ['stamp'];
     let p2wsh = [];
 
     // Parse URL hash for parameters (e.g., #decode_tx?tx=...)
-    const hash = window.location.hash; // e.g., #decode_tx?tx=4cc1b433...
+    const hash = window.location.hash;
     const queryString = hash.includes('?') ? '?' + hash.split('?')[1] : '';
     const urlParams = new URLSearchParams(queryString);
     let network = urlParams.get('network');
@@ -274,7 +275,7 @@
 
         cp_msg = cp_msg.substring(16);
         console.log(`After removing CNTRPRTY: cp_msg=${cp_msg}`);
-        if (cp_msg.length < 36) { // Minimum: id_hex (2) + asset_hex (16) + q_hex (16) + div_hex (2)
+        if (cp_msg.length < 36) {
           out += wl('Error', `Invalid Counterparty message length: ${cp_msg.length} (expected at least 36)`);
           document.getElementById("output").innerHTML = out;
           output2(hash);
@@ -289,7 +290,7 @@
         out += wl('Message ID (hex)', id_hex);
         out += wl('Message ID', id);
 
-        if (id == 20 || id == 21) {
+        if (id == 20 || (id == 21 && block_height >= 753500) || (id == 23 && block_height >= 819300)) {
           let asset_hex = cp_msg.substring(0, 16);
           let asset = BigInt('0x' + asset_hex).toString(10);
           console.log(`asset_hex=${asset_hex}, asset=A${asset}`);
@@ -321,7 +322,9 @@
 
           let subasset_hex = '';
           let subasset = '';
-          if (id == 21) {
+          let descr_hex = '';
+          let descr = '';
+          if (id == 21 || id == 23) {
             let len_subasset_hex = cp_msg.substring(0, 2);
             let len_subasset = parseInt(len_subasset_hex, 16);
             cp_msg = cp_msg.substring(2);
@@ -334,10 +337,10 @@
             subasset_hex = cp_msg.substring(0, len_subasset * 2);
             subasset = hex_to_subasset(subasset_hex);
             cp_msg = cp_msg.substring(len_subasset * 2);
+            descr_hex = cp_msg;
+            descr = hex2a(descr_hex);
+            descr = decodeURIComponent(escape(descr));
           }
-
-          let descr = hex2a(cp_msg);
-          descr = decodeURIComponent(escape(descr));
 
           out += wl('Type', id == 20 ? 'Issuance' : 'Issuance (Subasset)');
           if (recipient != '0') {
@@ -346,15 +349,20 @@
             out += wl('Dust (btc)', (first_send_sat / 100000000).toFixed(8));
           }
           out += wl('Asset', 'A' + asset);
-          if (id == 21) {
-            out += wl('Subasset', subasset);
-          }
           out += wl('Issuance', q);
           out += wl('Divisible', div);
           out += wl('Lock', lock);
           out += wl('Reset', reset);
+          if (id == 21 || id == 23) {
+            out += wl('Subasset', subasset);
+            out += wl('Subasset (hex)', subasset_hex);
+            out += wl('Description', descr);
+            out += wl('Description (hex)', descr_hex);
+          }
 
-          if (descr.toLowerCase().startsWith('stamp:')) {
+          if (id == 23 && descr.toLowerCase().startsWith('stamp:')) {
+            out += await print_standard('stamp:', tx, 'A' + asset, p2wsh.length > 0 ? '' : cp_msg);
+          } else if (descr.toLowerCase().startsWith('stamp:')) {
             out += await print_standard(descr, tx, 'A' + asset, '');
           }
         } else if (id == 22) {
@@ -740,7 +748,6 @@
       return out;
     }
 
-    // Automatically克服 the favicon.ico 404 error
     window.onload = function() {
       if (tx) {
         document.getElementById('txid').value = tx;
@@ -754,9 +761,9 @@ body {
     margin: 0;
     padding: 0;
     font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
-  }
+}
 
-  #content {
+#content {
     margin: auto;
     max-width: 800px;
     border: 2px solid #8B8B81;
@@ -767,167 +774,166 @@ body {
     overflow-y: auto;
     scrollbar-width: none;
     -ms-overflow-style: none;
-    max-height: 100vh; /* Optional: ensures scrolling */
-  }
+    max-height: 100vh;
+}
 
-  #content::-webkit-scrollbar {
+#content::-webkit-scrollbar {
     display: none;
-  }
+}
+
+h1 {
+    font-size: clamp(1.5rem, 5vw, 1.8rem);
+    margin: 0 0 1rem;
+    text-align: center;
+}
+
+p {
+    font-size: clamp(0.9rem, 4vw, 1rem);
+    margin: 0.5rem 0;
+    line-height: 1.5;
+}
+
+#txid {
+    width: 100%;
+    padding: 0.75rem;
+    font-size: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    box-sizing: border-box;
+    margin-bottom: 0.5rem;
+}
+
+input[type=submit] {
+    width: 100%;
+    padding: 0.75rem;
+    font-size: 1rem;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+input[type=submit]:hover {
+    background-color: #0056b3;
+}
+
+#output {
+    font-size: clamp(1rem, 3.5vw, 1.2rem);
+    margin: 1rem 1rem;
+}
+
+.output-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.3rem;
+}
+
+.output-label {
+    flex: 0 0 20%;
+    font-weight: bold;
+    text-align: left;
+}
+
+.output-value {
+    flex: 0 0 75%;
+    text-align: left;
+    word-break: break-word;
+    overflow-wrap: break-word;
+}
+
+.section-title {
+    font-weight: bold;
+    margin: 1rem 0 0.5rem;
+    font-size: clamp(0.9rem, 4vw, 1rem);
+}
+
+.stamp-image, .stamp-iframe {
+    width: 250px;
+    height: auto;
+    border: 1px solid #000;
+    margin: 1rem 0;
+    display: block;
+}
+
+.stamp-image {
+    image-rendering: pixelated;
+}
+
+.stamp-iframe {
+    aspect-ratio: 1/1;
+}
+
+details {
+    cursor: pointer;
+    margin: 0.5rem 0;
+}
+
+summary {
+    font-size: clamp(0.8rem, 3.5vw, 0.9rem);
+}
+
+pre {
+    font-size: clamp(0.8rem, 3vw, 0.8rem);
+    margin: 0.5rem 0;
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    white-space: pre-wrap;
+    overflow-x: auto;
+}
+
+pre.base64-content {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    max-width: 100%;
+}
+
+#output2 a {
+    font-size: clamp(0.9rem, 4vw, 1rem);
+    margin-right: 0.5rem;
+}
+
+#footer {
+    font-size: clamp(0.8rem, 3.5vw, 0.9rem);
+    text-align: center;
+    margin-top: 5rem;
+}
+
+@media (max-width: 600px) {
+    #output {
+        font-size: clamp(0.9rem, 3.5vw, 0.9rem);
+        margin: 0.5rem 0.5rem;
+    }
+    
+    pre {
+        font-size: clamp(0.6rem, 3vw, 0.6rem);
+        margin: 0.5rem 0;
+        padding: 0.75rem;
+    }
 
     h1 {
-      font-size: clamp(1.5rem, 5vw, 1.8rem);
-      margin: 0 0 1rem;
-      text-align: center;
+        font-size: clamp(1.2rem, 4.5vw, 1.5rem);
     }
-
+    
     p {
-      font-size: clamp(0.9rem, 4vw, 1rem);
-      margin: 0.5rem 0;
-      line-height: 1.5;
-    }
-
-    #txid {
-      width: 100%;
-      padding: 0.75rem;
-      font-size: 1rem;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      box-sizing: border-box;
-      margin-bottom: 0.5rem;
+        font-size: clamp(0.8rem, 3.5vw, 0.8rem);
     }
 
     input[type=submit] {
-      width: 100%;
-      padding: 0.75rem;
-      font-size: 1rem;
-      background-color: #007bff;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: background-color 0.2s;
-    }
-
-    input[type=submit]:hover {
-      background-color: #0056b3;
-    }
-
-    #output {
-      font-size: clamp(1rem, 3.5vw, 1.2rem);
-      margin: 1rem 1rem;
-    }
-
-    .output-row {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 0.3rem;
+        padding: 0.5rem;
     }
 
     .output-label {
-      flex: 0 0 20%;
-      font-weight: bold;
-      text-align: left;
+        flex: 0 0 40%;
     }
 
     .output-value {
-      flex: 0 0 75%;
-      text-align: left;
-      word-break: break-word;
-      overflow-wrap: break-word;
-    }
-
-    .section-title {
-      font-weight: bold;
-      margin: 1rem 0 0.5rem;
-      font-size: clamp(0.9rem, 4vw, 1rem);
-    }
-
-    .stamp-image, .stamp-iframe {
-      width: 250px;
-      height: auto;
-      border: 1px solid #000;
-      margin: 1rem 0;
-      display: block;
-    }
-
-    .stamp-image {
-      image-rendering: pixelated;
-    }
-
-    .stamp-iframe {
-      aspect-ratio: 1/1;
-    }
-
-    details {
-      cursor: pointer;
-      margin: 0.5rem 0;
-    }
-
-    summary {
-      font-size: clamp(0.8rem, 3.5vw, 0.9rem);
-    }
-
-    pre {
-      font-size: clamp(0.8rem, 3vw, 0.8rem);
-      margin: 0.5rem 0;
-      padding: 0.75rem;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      white-space: pre-wrap;
-      overflow-x: auto;
-    }
-
-    pre.base64-content {
-      white-space: pre-wrap;
-      word-wrap: break-word;
-      overflow-wrap: break-word;
-      max-width: 100%;
-    }
-
-    #output2 a {
-      font-size: clamp(0.9rem, 4vw, 1rem);
-      margin-right: 0.5rem;
-    }
-
-    #footer {
-      font-size: clamp(0.8rem, 3.5vw, 0.9rem);
-      text-align: center;
-      margin-top: 5rem;
-    }
-
-    @media (max-width: 600px) {
-      
-    #output {
-      font-size: clamp(0.9rem, 3.5vw, 0.9rem);
-      margin: 0.5rem 0.5rem;
-    }
-    
-          pre {
-      font-size: clamp(0.6rem, 3vw, 0.6rem);
-      margin: 0.5rem 0;
-      padding: 0.75rem;
-    }
-
-      h1 {
-        font-size: clamp(1.2rem, 4.5vw, 1.5rem);
-      }
-      
-      p {
-      font-size: clamp(0.8rem, 3.5vw, 0.8rem);
-    }
-
-      input[type=submit] {
-        padding: 0.5rem;
-      }
-
-      .output-label {
-        flex: 0 0 40%;
-      }
-
-      .output-value {
         flex: 0 0 65%;
-      }
     }
+}
   </style>
 </head>
 <body>
