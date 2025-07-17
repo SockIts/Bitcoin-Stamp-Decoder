@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -261,6 +260,12 @@
     out += wl('Address', from_addr);
     out += '<div class="section-title">COUNTERPARTY DATA</div>';
 
+   // Add Raw (hex) and Raw (ascii) for cp_msg
+    out += `<div class="output-row"><span class="output-label">Raw (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(cp_msg, 96)}</pre></details></span></div>`;
+    out += `<div class="output-row"><span class="output-label">Raw (ascii)</span><span class="output-value"><details><summary>ASCII: (click to expand/collapse)</summary><pre class="base64-content">${chunk(hex2a(cp_msg), 96)}</pre></details></span></div>`;
+
+
+    
     if (cp_msg.substring(0, 16) != '434e545250525459') {
       out += wl('Error', 'No valid Counterparty data found');
       if (p2wsh.length > 0) {
@@ -356,8 +361,7 @@
         descr = hex2a(descr_hex);
         out += wl('Subasset', subasset);
         out += wl('Subasset (hex)', subasset_hex);
-        out += wl('Description', descr);
-        out += wl('Description (hex)', descr_hex);
+
       }
 
       if (id == 23 && descr.toLowerCase().startsWith('stamp:')) {
@@ -402,6 +406,9 @@
       out += wl('Lock', lock);
       out += wl('Reset', reset);
 
+      // Add Description and Description (hex) for id == 22
+      let descr_hex = cp_msg;
+      let descr = hex2a(descr_hex);
       if (p2wsh.length > 0) {
         out += await print_standard('stamp:', tx, 'A' + asset, '');
       } else {
@@ -569,12 +576,15 @@
               file_type = 'html';
               console.log('Detected HTML in Classic stamp (default)');
             }
-
-            out += wl('Asset', assetOrCPID);
+            
+            
             out += wl('MIME Type', file_type === 'html' ? 'text/html' : `image/${file_type}`);
-            out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${image}</pre></details></span></div><br>`;
+            out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${image}</pre></details></span></div>`;
+            out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + image), 96)}</pre></details></span></div>`;
             let dimensions = await getImageDimensions(image, file_type);
             out += wl('Dimensions', dimensions);
+            
+
 
             if (file_type === 'html') {
               out += `<iframe class="stamp-iframe" src="data:text/html;base64,${image}"></iframe><br>`;
@@ -657,7 +667,7 @@
                 out += wl('Burned (btc)', (dust / 100000000).toFixed(8));
                 out += wl('Asset', assetOrCPID);
                 out += wl('MIME Type', file_type === 'html' ? 'text/html' : `image/${file_type}`);
-                out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>STAMP: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${base64}</pre></details></span></div><br>`;
+
                 let dimensions = await getImageDimensions(base64, file_type);
                 out += wl('Dimensions', dimensions);
                 if (file_type === 'html') {
@@ -730,7 +740,10 @@
               out += wl('Burned (sat)', dust);
               out += wl('Burned (btc)', (dust / 100000000).toFixed(8));
               out += wl('MIME Type', file_type === 'html' ? 'text/html' : `image/${file_type}`);
-              out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${base64}</pre></details></span></div><br>`;
+              
+              out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${base64}</pre></details></span></div>`;
+              out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + base64),  96)}</pre></details></span></div>`;
+              
               let dimensions = await getImageDimensions(base64, file_type);
               out += wl('Dimensions', dimensions);
               if (file_type === 'html') {
@@ -831,13 +844,12 @@ input[type=submit]:hover {
 }
 
 .output-label {
-    flex: 0 0 20%;
-    font-weight: bold;
+    flex: 0 0 25%;
     text-align: left;
 }
 
 .output-value {
-    flex: 0 0 75%;
+    flex: 0 0 70%;
     text-align: left;
     word-break: break-word;
     overflow-wrap: break-word;
@@ -845,8 +857,8 @@ input[type=submit]:hover {
 
 .section-title {
     font-weight: bold;
-    margin: 1rem 0 0.5rem;
-    font-size: clamp(0.9rem, 4vw, 1rem);
+    margin: 1rem 0 1rem;
+    font-size: clamp(1.2rem, 4vw, 1.2rem);
 }
 
 .stamp-image, .stamp-iframe {
@@ -871,7 +883,7 @@ details {
 }
 
 summary {
-    font-size: clamp(0.8rem, 3.5vw, 0.9rem);
+    font-size: clamp(1rem, 3.5vw, 1.2rem);
 }
 
 pre {
