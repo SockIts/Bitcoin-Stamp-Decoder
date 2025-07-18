@@ -13,6 +13,7 @@
       'ad891d1235b04110e6d174040de034760d1fa4c0a18437f169a1d1de34091ed3', //Classic_HTML
       '9bfd550831fd3fde30a8d168e458340256b58b1e75ad109785d7ce5beb726946', //Olga_PNG
       'c075e98ae365c809ccd2804c1487a799748399eeb9dd61708c814a5da34c9b78', //Olga_GIF
+      '2825437c2d6cf4250eca8b7bbc487107cc0ee4dfcd765a2dcf33ce31c7db2f45', //Olga_webp      
       '27000ab9c75570204adc1b3a5e7820c482d99033fbb3aafb844c3a3ce8b063db', //Olga_SVG
       '8c7c8efe339d10a981ae189c7c20851f1e2f10e0e8e6792a99dbe27e32b6b6a6', //Olga_HTML
       '2cfdc5d737065aa5c5c9febde8a803b1e6ee44e47de0f2788f9dfc4d40f7ed71', //Multisig
@@ -619,11 +620,11 @@
     }
 
     function output2(tx) {
-      let out = '<br><br>';
-      out += 'View on: ';
-      out += '<a href="https://stampchain.io/api/v2/stamps/' + tx + '">Stampchain.io</a> – ';
-      out += '<a href="https://live.blockcypher.com/btc/tx/' + tx + '/">BlockCypher</a> – ';
-      out += '<a href="https://www.blockchain.com/btc/tx/' + tx + '">Blockchain.com</a> – ';
+      let out = '<br>';
+      out += 'View on: <br>';
+      out += '<a href="https://stampchain.io/api/v2/stamps/' + tx + '">Stampchain.io</a> ';
+      out += '<a href="https://live.blockcypher.com/btc/tx/' + tx + '/">BlockCypher</a> ';
+      out += '<a href="https://www.blockchain.com/btc/tx/' + tx + '">Blockchain.com</a> ';
       out += '<a href="https://blockstream.info/tx/' + tx + '">Blockstream</a>';
       document.getElementById("output2").innerHTML = out;
     }
@@ -771,6 +772,9 @@
               } else if (image.slice(0, 5) === 'PHN2Z' || image.slice(0, 5) === 'PD94b') {
                 file_type = 'svg+xml';
                 console.log('Detected SVG in Classic stamp');
+              } else if (image.slice(0, 5) === 'UklGR') {
+                file_type = 'webp';
+                console.log('Detected WebP in Classic stamp');
               } else {
                 file_type = 'html';
                 console.log('Detected HTML in Classic stamp (default)');
@@ -839,6 +843,9 @@
                       } else if (image.slice(0, 5) === 'PHN2Z' || image.slice(0, 5) === 'PD94b') {
                         file_type = 'svg+xml';
                         console.log('Detected SVG in Classic stamp');
+                      } else if (image.slice(0, 5) === 'UklGR') {
+                        file_type = 'webp';
+                        console.log('Detected WebP in Classic stamp');
                       } else {
                         file_type = 'html';
                         console.log('Detected HTML in Classic stamp (default)');
@@ -903,6 +910,9 @@
                 } else if (base64.slice(0, 5) === 'PHN2Z' || base64.slice(0, 5) === 'PD94b') {
                   file_type = 'svg+xml';
                   console.log('Detected SVG in Olga stamp');
+                } else if (base64.slice(0, 5) === 'UklGR') {
+                  file_type = 'webp';
+                  console.log('Detected WebP in Olga stamp');
                 } else {
                   file_type = 'html';
                   console.log('Detected HTML in Olga stamp (default)');
@@ -977,6 +987,9 @@
               } else if (base64.slice(0, 5) === 'PHN2Z' || base64.slice(0, 5) === 'PD94b') {
                 file_type = 'svg+xml';
                 console.log('Detected SVG in P2WSH');
+              } else if (base64.slice(0, 5) === 'UklGR') {
+                file_type = 'webp';
+                console.log('Detected WebP in P2WSH');
               } else {
                 file_type = 'html';
                 console.log('Detected HTML in P2WSH (default)');
@@ -1086,7 +1099,7 @@ input[type=submit]:hover {
 .output-row {
     display: flex;
     justify-content: space-between;
-    margin-bottom: 0.3rem;
+    margin-bottom: 0.2rem;
 }
 
 .output-label {
@@ -1150,7 +1163,7 @@ pre.base64-content {
 }
 
 #output2 a {
-    font-size: clamp(0.9rem, 4vw, 1rem);
+    font-size: clamp(0.8rem, 30vw, 0.8rem);
     margin-right: 0.5rem;
 }
 
@@ -1162,9 +1175,14 @@ pre.base64-content {
 
 @media (max-width: 600px) {
     #output {
-        font-size: clamp(0.9rem, 3.5vw, 0.9rem);
+        font-size: clamp(0.8rem, 3vw, 0.8rem);
         margin: 0.5rem 0.5rem;
     }
+  
+
+summary {
+    font-size: clamp(0.8rem, 3vw, 0.8rem);
+}
     
     pre {
         font-size: clamp(0.6rem, 3vw, 0.6rem);
@@ -1191,12 +1209,12 @@ pre.base64-content {
     .output-value {
         flex: 0 0 65%;
     }
-}
+}i
   </style>
 </head>
 <body>
 <div id="content">
-  <h1>Bitcoin STAMP Decoder</h1>
+  <h1>Bitcoin STAMP Decoder v1.0</h1>
   <p>Enter a Bitcoin transaction ID to decode CP/Stamps Data.</p>
   <form onsubmit="event.preventDefault(); get_json(document.getElementById('txid').value);">
     <p>
@@ -1205,7 +1223,7 @@ pre.base64-content {
     </p><br>
   </form>
   <p>This Stamp decoder is a remix of JP’s Counterparty Decoder—it raids the BlockCypher API, grabs transaction goodies, and pulls out STAMP data like a blockchain treasure hunter.</p> <br>
-  <p><b>Note:</b> Now supports PNG, GIF, SVG+XML, and limited TEXT/HTML—Classic and Olga STAMPs included, no MIME left behind.</p><br><br>
+  <p><b>Note:</b> Now supports PNG, GIF, SVG+XML, WebP, and limited TEXT/HTML—Classic and Olga STAMPs included, no MIME left behind.</p>
   <pre>
  ____ ___ _____ ____ ___ ___ _   _        
 | __ )_ _|_   _/ ___/ _ \_ _| \ | |      
@@ -1219,7 +1237,6 @@ pre.base64-content {
  ___) || |/ ___ \| |  | |  __/ ___) |
 |____/ |_/_/   \_\_|  |_|_|   |____/ 
   </pre>
-  < AscII art
   <div id="output"></div>
   <div id="output2"></div>
   <div id="footer">
