@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1298,23 +1299,42 @@
   return out;
 }
 
-    function attachPendingVideoEventListeners() {
-  if (!window.pendingVideoEventListeners) return;
-  window.pendingVideoEventListeners.forEach(txId => {
-    const video = document.getElementById(`stamp-video-${txId}`);
-    if (video) {
-      video.addEventListener('touchstart', function(e) {
-        e.preventDefault();
-        this.play().catch(err => console.error('Playback error:', err));
+function attachPendingVideoEventListeners() {
+  if (window.pendingVideoEventListeners && window.pendingVideoEventListeners.length > 0) {
+    const attachListeners = () => {
+      window.pendingVideoEventListeners.forEach(tx => {
+        const video = document.getElementById(`stamp-video-${tx}`);
+        if (video) {
+          console.log(`Attaching touchstart listener to video: ${tx}`);
+          video.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (video.paused) {
+              video.play().catch(err => console.error(`Video play error for ${tx}:`, err));
+            } else {
+              video.pause();
+            }
+ }, { passive: false });
+video.addEventListener('click', (e) => {
+  e.preventDefault();
+  if (video.paused) {
+    video.play().catch(err => console.error(`Video play error for ${tx}:`, err));
+  } else {
+    video.pause();
+  }
+}, { passive: false });
+        } else {
+          console.error(`Video element not found for ${tx}`);
+        }
       });
-      video.addEventListener('loadedmetadata', () => console.log('Video metadata loaded:', this.duration));
-      video.addEventListener('error', (e) => console.error('Video error:', e));
+      window.pendingVideoEventListeners = [];
+    };
+    // Retry after a short delay if DOM isn't ready
+    if (document.getElementById(`stamp-video-${window.pendingVideoEventListeners[0]}`)) {
+      attachListeners();
     } else {
-      console.error(`Video element with ID stamp-video-${txId} not found`);
+      setTimeout(attachListeners, 100);
     }
-  });
-  // Clear the list after attaching listeners
-  window.pendingVideoEventListeners = [];
+  }
 }
     
     window.onload = function() {
@@ -1390,7 +1410,10 @@ input[type=submit]:hover {
 
 #output {
     font-size: clamp(1rem, 3.5vw, 1.2rem);
-    margin: 1rem 1rem;
+    margin: 1rem 1rem
+      position: relative;
+  z-index: 1;
+  pointer-events: auto;
 }
 
 .output-row {
@@ -1521,6 +1544,18 @@ pre.base64-content {
     .output-value {
         flex: 0 0 65%;
     }
+  .stamp-video {
+    width: 100%;
+    max-width: 400px;
+    height: auto;
+    transform: none;
+    margin: 0;
+    position: relative;
+    z-index: 10;
+    pointer-events: auto;
+    touch-action: manipulation; /* Optimize touch handling */
+  }
+  
 }
   </style>
 </head>
