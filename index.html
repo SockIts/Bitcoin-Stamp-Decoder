@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -126,9 +125,6 @@
           }
           let rawHex = await getRawTx(tx);
           decode(json, rawHex, tx);
-          const notification = document.createElement('div');
-          notification.style.cssText = 'position: fixed; top: 20px; right: 20px; background-color: #28a745; color: white; padding: 10px 20px; border-radius: 5px; z-index: 1000;';
-          notification.textContent = 'Done! LFG';
           document.body.appendChild(notification);
           setTimeout(() => {
             notification.remove();
@@ -1343,6 +1339,24 @@ video.addEventListener('click', (e) => {
         get_json(tx);
       }
     };
+    
+    function toggleDarkMode() {
+      const isDark = document.body.classList.toggle('dark-mode');
+      localStorage.setItem('darkMode', isDark ? 'enabled' : 'disabled');
+      document.getElementById('theme-toggle').textContent = isDark ? '☀️ Light Mode' : '🌙 Dark Mode';
+    }
+
+    window.onload = function() {
+      if (localStorage.getItem('darkMode') === 'enabled') {
+        document.body.classList.add('dark-mode');
+        document.getElementById('theme-toggle').textContent = '☀️ Light Mode';
+      }
+      if (tx) {
+        document.getElementById('txid').value = tx;
+        get_json(tx);
+      }
+    };
+    
   </script>
 
   <style>
@@ -1351,7 +1365,92 @@ body {
     padding: 0;
     font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
 }
+body.dark-mode {
+      background-color: #1a1a1a;
+      color: #e0e0e0;
+    }
 
+    body.dark-mode #content {
+      background-color: #2d2d2d;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.7);
+    }
+
+    body.dark-mode #txid {
+      background-color: #3a3a3a;
+      border-color: #555;
+      color: #e0e0e0;
+    }
+
+    body.dark-mode #txid:focus {
+      border-color: #60a5fa;
+      box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2);
+    }
+
+    body.dark-mode input[type=submit] {
+      background-color: #60a5fa;
+    }
+
+    body.dark-mode input[type=submit]:hover {
+      background-color: #3b82f6;
+    }
+
+    body.dark-mode .output-label {
+      color: #e0e0e0;
+    }
+
+    body.dark-mode .output-value {
+      color: #b0b0b0;
+    }
+
+    body.dark-mode .section-title {
+      color: #e0e0e0;
+      border-left-color: #60a5fa;
+    }
+
+    body.dark-mode pre {
+      background-color: #3a3a3a;
+      border-color: #555;
+      color: #e0e0e0;
+    }
+
+    body.dark-mode #output2 a {
+      color: #60a5fa;
+    }
+
+    body.dark-mode #output2 a:hover {
+      color: #3b82f6;
+    }
+
+    body.dark-mode #footer {
+      color: #9ca3af;
+    }
+
+    #theme-toggle {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      padding: 0.5rem 0.5rem;
+      font-size: 0.5rem;
+      background-color: grey;
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+    }
+
+    #theme-toggle:hover {
+      background-color: #1d4ed8;
+    }
+
+    body.dark-mode #theme-toggle {
+      background-color: #60a5fa;
+    }
+
+    body.dark-mode #theme-toggle:hover {
+      background-color: #3b82f6;
+    }
+    
 #content {
     max-width: 900px;
     margin: 2rem;
@@ -1530,6 +1629,11 @@ pre.base64-content {
     color: #6b7280;
 }
 
+    #content {
+      position: relative; /* Ensure button is positioned relative to content */
+    }
+    
+    
 @media (max-width: 600px) {
     #content {
         margin: 1rem;
@@ -1571,6 +1675,7 @@ pre.base64-content {
 </head>
 <body>
 <div id="content">
+    <button id="theme-toggle" onclick="toggleDarkMode()">🌙 Dark Mode</button>
   <h1>Bitcoin STAMP Decoder v1.0</h1><Br>
   <p>Enter a Bitcoin transaction ID to decode CP/Stamps Data.</p>
   <form onsubmit="event.preventDefault(); get_json(document.getElementById('txid').value);">
