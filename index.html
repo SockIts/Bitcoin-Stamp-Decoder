@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1352,21 +1353,24 @@ body {
 }
 
 #content {
-    margin: auto;
-    max-width: 800px;
-    border: 2px solid #8B8B81;
+    max-width: 900px;
+    margin: 2rem;
+    padding: 2rem;
+    background-color: #ffffff;
     border-radius: 12px;
-    padding: 20px;
-    background-color: #BFBFBF;
-    box-sizing: border-box;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.5);
     overflow-y: auto;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-    max-height: 100vh;
+    scrollbar-width: thin;
+    scrollbar-color: #e0e0e0 transparent;
 }
 
 #content::-webkit-scrollbar {
-    display: none;
+    width: 8px;
+}
+
+#content::-webkit-scrollbar-thumb {
+    background-color: #e0e0e0;
+    border-radius: 4px;
 }
 
 h1 {
@@ -1385,28 +1389,36 @@ p {
     width: 100%;
     padding: 0.75rem;
     font-size: 1rem;
-    border: 1px solid #ccc;
-    border-radius: 6px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
     box-sizing: border-box;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.75rem;
+    transition: border-color 0.2s ease;
+}
+
+#txid:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
 input[type=submit] {
     width: 100%;
     padding: 0.75rem;
     font-size: 1rem;
-    background-color: #007bff;
-    color: white;
+    font-weight: 500;
+    background-color: #2563eb;
+    color: #ffffff;
     border: none;
-    border-radius: 6px;
+    border-radius: 8px;
     cursor: pointer;
-    transition: background-color 0.2s;
+    transition: background-color 0.2s ease;
 }
 
 input[type=submit]:hover {
-    background-color: #0056b3;
+    background-color: #1d4ed8;
 }
-
+    
 #output {
     font-size: clamp(1rem, 3.5vw, 1.2rem);
     margin: 1rem 1rem
@@ -1416,27 +1428,29 @@ input[type=submit]:hover {
 }
 
 .output-row {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 0.2rem;
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    padding: 0.2rem 0;
+    border-bottom: 1px solid #f0f0f0;
 }
 
 .output-label {
-    flex: 0 0 25%;
-    text-align: left;
+    font-weight: 500;
+    color: #1a1a1a;
 }
 
 .output-value {
-    flex: 0 0 70%;
-    text-align: left;
+    color: #4a4a4a;
     word-break: break-word;
-    overflow-wrap: break-word;
 }
 
 .section-title {
-    font-weight: bold;
-    margin: 1rem 0 1rem;
-    font-size: clamp(1.2rem, 4vw, 1.2rem);
+    font-weight: 600;
+    margin: 1.5rem 0 1rem;
+    font-size: 1.25rem;
+    color: #1a1a1a;
+    border-left: 4px solid #2563eb;
+    padding-left: 0.75rem;
 }
 
 .stamp-image, .stamp-iframe {
@@ -1450,7 +1464,6 @@ input[type=submit]:hover {
     -o-transform: scale(0.5);
     -webkit-transform: scale(0.5);
     transform: scale(0.5);
-
     -ms-transform-origin: 0 0;
     -moz-transform-origin: 0 0;
     -o-transform-origin: 0 0;
@@ -1472,7 +1485,7 @@ input[type=submit]:hover {
     
 details {
     cursor: pointer;
-    margin: 0.5rem 0;
+    margin: 0.75rem 0;
 }
 
 summary {
@@ -1480,11 +1493,12 @@ summary {
 }
 
 pre {
-    font-size: clamp(0.8rem, 3vw, 0.8rem);
-    margin: 0.5rem 0;
-    padding: 0.75rem;
-    border: 1px solid #ddd;
-    border-radius: 4px;
+    font-size: 0.875rem;
+    margin: 0.75rem 0;
+    padding: 1rem;
+    background-color: #f8fafc;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
     white-space: pre-wrap;
     overflow-x: auto;
 }
@@ -1497,69 +1511,67 @@ pre.base64-content {
 }
 
 #output2 a {
-    font-size: clamp(0.8rem, 30vw, 0.8rem);
-    margin-right: 0.5rem;
+    font-size: 0.875rem;
+    color: #2563eb;
+    text-decoration: none;
+    margin-right: 1rem;
+    transition: color 0.2s ease;
+}
+
+#output2 a:hover {
+    color: #1d4ed8;
+    text-decoration: underline;
 }
 
 #footer {
-    font-size: clamp(0.8rem, 3.5vw, 0.9rem);
+    font-size: 0.875rem;
     text-align: center;
-    margin-top: 5rem;
+    margin-top: 3rem;
+    color: #6b7280;
 }
 
 @media (max-width: 600px) {
-    #output {
-        font-size: clamp(0.8rem, 3vw, 0.8rem);
-        margin: 0.5rem 0.5rem;
-    }
-  
-    summary {
-        font-size: clamp(0.8rem, 3vw, 0.8rem);
-    }
-    
-    pre {
-        font-size: clamp(0.6rem, 3vw, 0.6rem);
-        margin: 0.5rem 0;
-        padding: 0.75rem;
+    #content {
+        margin: 1rem;
+        padding: 1.5rem;
     }
 
     h1 {
-        font-size: clamp(1.2rem, 4.5vw, 1.5rem);
+        font-size: 1.5rem;
     }
-    
+
     p {
-        font-size: clamp(0.8rem, 3.5vw, 0.8rem);
+        font-size: 0.875rem;
     }
 
-    input[type=submit] {
-        padding: 0.5rem;
+    #output {
+        font-size: 0.875rem;
     }
 
-    .output-label {
-        flex: 0 0 40%;
+    .output-row {
+        grid-template-columns: 120px 1fr;
+        gap: 0.5rem;
     }
 
-    .output-value {
-        flex: 0 0 65%;
+    .section-title {
+        font-size: 1.125rem;
     }
-  .stamp-video {
-    width: 100%;
-    max-width: 400px;
-    height: auto;
-    transform: none;
-    margin: 0;
-    position: relative;
-    z-index: 10;
-    pointer-events: auto;
-    touch-action: manipulation; /* Optimize touch handling */
-  }
-  
+
+    summary {
+        font-size: 0.875rem;
+    }
+
+    pre {
+        font-size: 0.75rem;
+        padding: 0.75rem;
+    }
+
 }
   </style>
 </head>
 <body>
 <div id="content">
-  <h1>Bitcoin STAMP Decoder v1.0</h1>
+  <h1>Bitcoin STAMP Decoder v1.0</h1><Br>
   <p>Enter a Bitcoin transaction ID to decode CP/Stamps Data.</p>
   <form onsubmit="event.preventDefault(); get_json(document.getElementById('txid').value);">
     <p>
