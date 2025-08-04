@@ -259,18 +259,18 @@
     out += wl('Block #', block_height);
     out += wl('Block Time', block_time);
     out += wl('Address', from_addr);
-    out += '<div class="section-title">COUNTERPARTY DATA</div>';
+    out += '<div class="section-title">CP/STAMP DATA</div>';
 
     out += `<div class="output-row"><span class="output-label">Raw (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(cp_msg, 96)}</pre></details></span></div>`;
     out += `<div class="output-row"><span class="output-label">Raw (ascii)</span><span class="output-value"><details><summary>ASCII: (click to expand/collapse)</summary><pre class="base64-content">${chunk(hex2a(cp_msg), 96)}</pre></details></span></div>`;
 
     if (cp_msg.substring(0, 16) != '434e545250525459') {
-      out += wl('Error', 'No valid Counterparty data found');
+      out += wl('Error', 'No valid CP/Stamp data found');
       if (p2wsh.length > 0) {
         console.log('P2WSH outputs found; attempting OLGA STAMP decoding');
         out += await print_standard('stamp:', tx, 'A' + BigInt('0x' + cp_msg.substring(2, 18)).toString(10), cp_msg);
       } else {
-        out += wl('Error', 'No valid Counterparty data or P2WSH outputs found');
+        out += wl('Error', 'No valid CP/Stamp data or P2WSH outputs found');
       }
       document.getElementById("output").innerHTML = out;
       attachPendingVideoEventListeners(); // Add here
@@ -281,7 +281,7 @@
     cp_msg = cp_msg.substring(16);
     console.log(`After removing CNTRPRTY: cp_msg=${cp_msg}`);
     if (cp_msg.length < 36) {
-      out += wl('Error', `Invalid Counterparty message length: ${cp_msg.length} (expected at least 36)`);
+      out += wl('Error', `Invalid CP/Stamp message length: ${cp_msg.length} (expected at least 36)`);
       document.getElementById("output").innerHTML = out;
       attachPendingVideoEventListeners(); // Add here
       output2(hash);
