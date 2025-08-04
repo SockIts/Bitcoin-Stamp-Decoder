@@ -1,12 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>STAMP Decoder</title>
-  <!-- Replace with a valid URL or local path to sha256.js -->
-  <!-- <script type="text/javascript" src="path/to/sha256.js"></script> -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
   <script>
     let example_txs = [
@@ -27,7 +24,6 @@
     let standards = ['stamp'];
     let p2wsh = [];
 
-    // Parse URL hash for parameters (e.g., #decode_tx?tx=...)
     const hash = window.location.hash;
     const queryString = hash.includes('?') ? '?' + hash.split('?')[1] : '';
     const urlParams = new URLSearchParams(queryString);
@@ -72,7 +68,7 @@
 
     async function getRawTx(tx) {
       console.log('Fetching raw transaction data for witness scripts...');
-      return null; // Placeholder
+      return null;
     }
 
     function getImageDimensions(base64, file_type) {
@@ -97,8 +93,8 @@
             } else {
               resolve('unknown');
             }
-          } else if (file_type === 'html') {
-            resolve('300x300');
+          } else if (file_type === 'html' || file_type === 'video') {
+            resolve('N/A');
           } else {
             let img = new Image();
             img.onload = function() {
@@ -298,12 +294,9 @@
         out += wl('Message ID (hex)', id_hex);
         out += wl('Message ID', id);
 
-        // Ensure block_height is a number for comparison
         let blockHeightNum = block_height === 'unknown' ? 0 : parseInt(block_height);
 
-        // Rule-based decoding
         if (id == 20 && blockHeightNum < 753500) {
-          // Rule 1: Classic Stamp
           out += wl('Type', 'Issuance (Classic Stamp)');
           let asset_hex = cp_msg.substring(0, 16);
           let asset = BigInt('0x' + asset_hex).toString(10);
@@ -347,7 +340,6 @@
           }
 
         } else if (id == 21 && blockHeightNum < 753500) {
-          // Rule 2: Subasset (Classic)
           out += wl('Type', 'Issuance (Subasset Classic)');
           let asset_hex = cp_msg.substring(0, 16);
           let asset = BigInt('0x' + asset_hex).toString(10);
@@ -408,7 +400,6 @@
           }
 
         } else if (id == 20 && blockHeightNum >= 753500) {
-          // Rule 3: Olga Stamp
           out += wl('Type', 'Issuance (Olga Stamp)');
           let asset_hex = cp_msg.substring(0, 16);
           let asset = BigInt('0x' + asset_hex).toString(10);
@@ -446,7 +437,6 @@
           out += await print_standard('stamp:', tx, 'A' + asset, p2wsh.length > 0 ? '' : cp_msg);
 
         } else if (id == 22 && blockHeightNum >= 819300) {
-          // Rule 4: Olga Stamp
           out += wl('Type', 'Issuance (Olga Stamp)');
           let asset_hex = cp_msg.substring(0, 16);
           let asset = BigInt('0x' + asset_hex).toString(10);
@@ -484,7 +474,6 @@
           out += await print_standard('stamp:', tx, 'A' + asset, p2wsh.length > 0 ? '' : cp_msg);
 
         } else if (id == 21 && blockHeightNum >= 753500) {
-          // Rule 5: Subasset (Olga)
           out += wl('Type', 'Issuance (Subasset Olga)');
           let asset_hex = cp_msg.substring(0, 16);
           let asset = BigInt('0x' + asset_hex).toString(10);
@@ -545,7 +534,6 @@
           }
 
         } else if (id == 23 && blockHeightNum >= 819300) {
-          // Rule 6: Subasset (Olga)
           out += wl('Type', 'Issuance (Subasset Olga)');
           let asset_hex = cp_msg.substring(0, 16);
           let asset = BigInt('0x' + asset_hex).toString(10);
@@ -755,9 +743,9 @@
       if (descr.toLowerCase().startsWith('stamp:')) {
         if (/^[a-zA-Z0-9+\/=]+$/.test(descr.substr(6))) {
           out += wl('Standard', 'STAMP (Classic)');
-          let image = descr.slice(6).replace(/\s/g, ''); // Remove whitespace
+          let image = descr.slice(6).replace(/\s/g, '');
           let paddingNeeded = (4 - (image.length % 4)) % 4;
-          image += '='.repeat(paddingNeeded); // Ensure proper padding
+          image += '='.repeat(paddingNeeded);
           console.log(`Classic stamp base64 (cleaned): ${image.slice(0, 50)}...`);
           if (/^[a-zA-Z0-9+\/=]+$/.test(image) && image.length % 4 === 0) {
             let file_type = '';
@@ -776,7 +764,6 @@
                   return out;
                 }
                 try {
-                  // Convert decoded string to Uint8Array for pako
                   let binary = new Uint8Array(decoded.length);
                   for (let i = 0; i < decoded.length; i++) {
                     binary[i] = decoded.charCodeAt(i);
@@ -820,15 +807,32 @@
               }
               
               out += wl('Compression', isGzip ? 'gZIP' : 'None');
-              out += wl('MIME Type', file_type === 'html' ? 'text/html' : `image/${file_type}`);
-              out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${image}</pre></details></span></div>`;
-              out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + image), 96)}</pre></details></span></div>`;
-              let dimensions = await getImageDimensions(processedImage, file_type);
-              out += wl('Dimensions', dimensions);
-              
               if (file_type === 'html') {
-                out += `<iframe class="stamp-iframe" src="data:text/html;base64,${processedImage}"></iframe><br>`;
+                try {
+let htmlContent = atob(processedBase64);
+let parser = new DOMParser();
+let doc = parser.parseFromString(htmlContent, 'text/html');
+let video = doc.querySelector('video');
+if (video && video.src) {
+  file_type = 'video';
+  out += wl('MIME Type', 'video/mp4');
+  out += `<video class="stamp-video" controls preload="metadata" src="${video.src}"></video><br>`;
+  out += `<div class="output-row"><span class="output-label">Note</span><span class="output-value">Click the play button to start the video. If playback fails, ensure the file is valid and try interacting with the page (e.g., click anywhere).</span></div>`;
+} else {
+  // Fallback to iframe
+  out += wl('MIME Type', 'text/html');
+  out += `<iframe class="stamp-iframe" src="data:text/html;base64,${processedBase64}"></iframe><br>`;
+}
+                } catch (e) {
+                  out += wl('Error', 'Failed to parse HTML content: ' + e.message);
+                  console.error(`HTML parsing error: ${e.message}`);
+                }
               } else {
+                out += wl('MIME Type', `image/${file_type}`);
+                out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${image}</pre></details></span></div>`;
+                out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + image), 96)}</pre></details></span></div>`;
+                let dimensions = await getImageDimensions(processedImage, file_type);
+                out += wl('Dimensions', dimensions);
                 out += `<img class="stamp-image" src="data:image/${file_type};base64,${processedImage}" /><br>`;
               }
             } catch (e) {
@@ -866,9 +870,9 @@
               console.log(`Invalid file size, attempting Classic stamp parsing: descr=${descr}`);
               if (descr.toLowerCase().startsWith('stamp:')) {
                 out += wl('Standard', 'STAMP (Classic)');
-                let image = descr.slice(6).replace(/\s/g, ''); // Remove whitespace
+                let image = descr.slice(6).replace(/\s/g, '');
                 let paddingNeeded = (4 - (image.length % 4)) % 4;
-                image += '='.repeat(paddingNeeded); // Ensure proper padding
+                image += '='.repeat(paddingNeeded);
                 console.log(`Classic stamp base64 (cleaned): ${image.slice(0, 50)}...`);
                 if (/^[a-zA-Z0-9+\/=]+$/.test(image) && image.length % 4 === 0) {
                   let file_type = '';
@@ -886,7 +890,6 @@
                         return out;
                       }
                       try {
-                        // Convert decoded string to Uint8Array for pako
                         let binary = new Uint8Array(decoded.length);
                         for (let i = 0; i < decoded.length; i++) {
                           binary[i] = decoded.charCodeAt(i);
@@ -930,15 +933,39 @@
                     }
                     
                     out += wl('Compression', isGzip ? 'gZIP' : 'None');
-                    out += wl('MIME Type', file_type === 'html' ? 'text/html' : `image/${file_type}`);
-                    out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${image}</pre></details></span></div>`;
-                    out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + image), 96)}</pre></details></span></div>`;
-                    let dimensions = await getImageDimensions(processedImage, file_type);
-                    out += wl('Dimensions', dimensions);
-                    
                     if (file_type === 'html') {
-                      out += `<iframe class="stamp-iframe" src="data:text/html;base64,${processedImage}"></iframe><br>`;
+                      try {
+                        let htmlContent = atob(processedImage);
+                        let parser = new DOMParser();
+                        let doc = parser.parseFromString(htmlContent, 'text/html');
+                        let video = doc.querySelector('video');
+                        if (video && video.src) {
+                          file_type = 'video';
+                          out += wl('MIME Type', 'video/mp4');
+                          out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${image}</pre></details></span></div>`;
+                          out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + image), 96)}</pre></details></span></div>`;
+                          let dimensions = await getImageDimensions(processedImage, file_type);
+                          out += wl('Dimensions', dimensions);
+                          out += `<video class="stamp-video" controls preload="metadata" src="${video.src}"></video><br>`;
+                          out += `<div class="output-row"><span class="output-label">Note</span><span class="output-value">Click the play button to start the video. If playback fails, ensure the file is valid and try interacting with the page (e.g., click anywhere).</span></div>`;
+                        } else {
+                          out += wl('MIME Type', 'text/html');
+                          out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${image}</pre></details></span></div>`;
+                          out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + image), 96)}</pre></details></span></div>`;
+                          let dimensions = await getImageDimensions(processedImage, file_type);
+                          out += wl('Dimensions', dimensions);
+                          out += `<iframe class="stamp-iframe" src="data:text/html;base64,${processedImage}"></iframe><br>`;
+                        }
+                      } catch (e) {
+                        out += wl('Error', 'Failed to parse HTML content: ' + e.message);
+                        console.error(`HTML parsing error: ${e.message}`);
+                      }
                     } else {
+                      out += wl('MIME Type', `image/${file_type}`);
+                      out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${image}</pre></details></span></div>`;
+                      out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + image), 96)}</pre></details></span></div>`;
+                      let dimensions = await getImageDimensions(processedImage, file_type);
+                      out += wl('Dimensions', dimensions);
                       out += `<img class="stamp-image" src="data:image/${file_type};base64,${processedImage}" /><br>`;
                     }
                   } catch (e) {
@@ -994,7 +1021,6 @@
                   return out;
                 }
                 try {
-                  // Convert decoded string to Uint8Array for pako
                   let binary = new Uint8Array(decoded.length);
                   for (let i = 0; i < decoded.length; i++) {
                     binary[i] = decoded.charCodeAt(i);
@@ -1020,7 +1046,7 @@
               if (processedBase64.slice(0, 6) === 'R0lGOD') {
                 file_type = 'gif';
                 console.log('Detected GIF in Olga stamp');
-              } else if (processedImage.slice(0, 6) === 'iVBORw') {
+              } else if (processedBase64.slice(0, 6) === 'iVBORw') {
                 file_type = 'png';
                 console.log('Detected PNG in Olga stamp');
               } else if (processedBase64.slice(0, 4) === '/9j/') {
@@ -1042,16 +1068,39 @@
               out += wl('Burned (btc)', (dust / 100000000).toFixed(8));
               out += wl('Asset', assetOrCPID);
               out += wl('Compression', isGzip ? 'gZIP' : 'None');
-              out += wl('MIME Type', file_type === 'html' ? 'text/html' : `image/${file_type}`);
-
-              let dimensions = await getImageDimensions(processedBase64, file_type);
-              out += wl('Dimensions', dimensions);
-              out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${base64}</pre></details></span></div>`;
-              out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + base64), 96)}</pre></details></span></div>`;
-              
               if (file_type === 'html') {
-                out += `<iframe class="stamp-iframe" src="data:text/html;base64,${processedBase64}"></iframe><br>`;
+                try {
+                  let htmlContent = atob(processedBase64);
+                  let parser = new DOMParser();
+                  let doc = parser.parseFromString(htmlContent, 'text/html');
+                  let video = doc.querySelector('video');
+                  if (video && video.src) {
+                    file_type = 'video';
+                    out += wl('MIME Type', 'video/mp4');
+                    out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${base64}</pre></details></span></div>`;
+                    out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + base64), 96)}</pre></details></span></div>`;
+                    let dimensions = await getImageDimensions(processedBase64, file_type);
+                    out += wl('Dimensions', dimensions);
+                    out += `<video class="stamp-video" controls preload="metadata" src="${video.src}"></video><br>`;
+                    out += `<div class="output-row"><span class="output-label">Note</span><span class="output-value">Click the play button to start the video. If playback fails, ensure the file is valid and try interacting with the page (e.g., click anywhere).</span></div>`;
+                  } else {
+                    out += wl('MIME Type', 'text/html');
+                    out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${base64}</pre></details></span></div>`;
+                    out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + base64), 96)}</pre></details></span></div>`;
+                    let dimensions = await getImageDimensions(processedBase64, file_type);
+                    out += wl('Dimensions', dimensions);
+                    out += `<iframe class="stamp-iframe" src="data:text/html;base64,${processedBase64}"></iframe><br>`;
+                  }
+                } catch (e) {
+                  out += wl('Error', 'Failed to parse HTML content: ' + e.message);
+                  console.error(`HTML parsing error: ${e.message}`);
+                }
               } else {
+                out += wl('MIME Type', `image/${file_type}`);
+                out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${base64}</pre></details></span></div>`;
+                out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + base64), 96)}</pre></details></span></div>`;
+                let dimensions = await getImageDimensions(processedBase64, file_type);
+                out += wl('Dimensions', dimensions);
                 out += `<img class="stamp-image" src="data:image/${file_type};base64,${processedBase64}" /><br>`;
               }
             } catch (e) {
@@ -1111,7 +1160,6 @@
                   return out;
                 }
                 try {
-                  // Convert decoded string to Uint8Array for pako
                   let binary = new Uint8Array(decoded.length);
                   for (let i = 0; i < decoded.length; i++) {
                     binary[i] = decoded.charCodeAt(i);
@@ -1159,16 +1207,39 @@
               out += wl('Burned (btc)', (dust / 100000000).toFixed(8));
               out += wl('Asset', assetOrCPID);
               out += wl('Compression', isGzip ? 'gZIP' : 'None');
-              out += wl('MIME Type', file_type === 'html' ? 'text/html' : `image/${file_type}`);
-              
-              out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${base64}</pre></details></span></div>`;
-              out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + base64), 96)}</pre></details></span></div>`;
-              
-              let dimensions = await getImageDimensions(processedBase64, file_type);
-              out += wl('Dimensions', dimensions);
               if (file_type === 'html') {
-                out += `<iframe class="stamp-iframe" src="data:text/html;base64,${processedBase64}"></iframe><br>`;
+                try {
+                  let htmlContent = atob(processedBase64);
+                  let parser = new DOMParser();
+                  let doc = parser.parseFromString(htmlContent, 'text/html');
+                  let video = doc.querySelector('video');
+                  if (video && video.src) {
+                    file_type = 'video';
+                    out += wl('MIME Type', 'video/mp4');
+                    out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${base64}</pre></details></span></div>`;
+                    out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + base64), 96)}</pre></details></span></div>`;
+                    let dimensions = await getImageDimensions(processedBase64, file_type);
+                    out += wl('Dimensions', dimensions);
+                    out += `<video class="stamp-video" controls preload="metadata" src="${video.src}"></video><br>`;
+                    out += `<div class="output-row"><span class="output-label">Note</span><span class="output-value">Click the play button to start the video. If playback fails, ensure the file is valid and try interacting with the page (e.g., click anywhere).</span></div>`;
+                  } else {
+                    out += wl('MIME Type', 'text/html');
+                    out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${base64}</pre></details></span></div>`;
+                    out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + base64), 96)}</pre></details></span></div>`;
+                    let dimensions = await getImageDimensions(processedBase64, file_type);
+                    out += wl('Dimensions', dimensions);
+                    out += `<iframe class="stamp-iframe" src="data:text/html;base64,${processedBase64}"></iframe><br>`;
+                  }
+                } catch (e) {
+                  out += wl('Error', 'Failed to parse HTML content: ' + e.message);
+                  console.error(`HTML parsing error: ${e.message}`);
+                }
               } else {
+                out += wl('MIME Type', `image/${file_type}`);
+                out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${base64}</pre></details></span></div>`;
+                out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + base64), 96)}</pre></details></span></div>`;
+                let dimensions = await getImageDimensions(processedBase64, file_type);
+                out += wl('Dimensions', dimensions);
                 out += `<img class="stamp-image" src="data:image/${file_type};base64,${processedBase64}" /><br>`;
               }
             } catch (e) {
@@ -1287,6 +1358,7 @@ input[type=submit]:hover {
     border: 1px solid #000;
     margin: 1rem 0;
     display: block;
+  	aspect-ratio: 1/1;
     -ms-transform: scale(0.65);
     -moz-transform: scale(0.65);
     -o-transform: scale(0.65);
@@ -1304,10 +1376,14 @@ input[type=submit]:hover {
     image-rendering: pixelated;
 }
 
-.stamp-iframe {
-    aspect-ratio: 1/1;
-}
-
+    .stamp-video {
+      width: 600px;
+      height: auto;
+      transform: scale(0.65);
+      transform-origin: top left;
+      margin: 0;
+    }
+    
 details {
     cursor: pointer;
     margin: 0.5rem 0;
