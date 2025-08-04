@@ -1282,12 +1282,23 @@ input[type=submit]:hover {
 }
 
 .stamp-image, .stamp-iframe {
-    width: 400px;
+    width: 600px;
     height: auto;
     border: 1px solid #000;
     margin: 1rem 0;
     display: block;
-}
+    -ms-transform: scale(0.65);
+    -moz-transform: scale(0.65);
+    -o-transform: scale(0.65);
+    -webkit-transform: scale(0.65);
+    transform: scale(0.65);
+
+    -ms-transform-origin: 0 0;
+    -moz-transform-origin: 0 0;
+    -o-transform-origin: 0 0;
+    -webkit-transform-origin: 0 0;
+    transform-origin: 0 0;
+  }
 
 .stamp-image {
     image-rendering: pixelated;
