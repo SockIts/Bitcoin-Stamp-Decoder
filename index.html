@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -299,7 +300,7 @@
     let blockHeightNum = block_height === 'unknown' ? 0 : parseInt(block_height);
 
     if (id == 20 && blockHeightNum < 753500) {
-      out += wl('Type', 'Issuance (Classic Stamp)');
+      out += wl('Type', 'Issuance');
       let asset_hex = cp_msg.substring(0, 16);
       let asset = BigInt('0x' + asset_hex).toString(10);
       cp_msg = cp_msg.substring(16);
@@ -343,7 +344,7 @@
       }
 
     } else if (id == 21 && blockHeightNum < 753500) {
-      out += wl('Type', 'Issuance (Subasset Classic)');
+      out += wl('Type', 'Issuance');
       let asset_hex = cp_msg.substring(0, 16);
       let asset = BigInt('0x' + asset_hex).toString(10);
       cp_msg = cp_msg.substring(16);
@@ -405,7 +406,7 @@
       }
 
     } else if (id == 20 && blockHeightNum >= 753500) {
-      out += wl('Type', 'Issuance (Olga Stamp)');
+      out += wl('Type', 'Issuance');
       let asset_hex = cp_msg.substring(0, 16);
       let asset = BigInt('0x' + asset_hex).toString(10);
       cp_msg = cp_msg.substring(16);
@@ -443,7 +444,7 @@
       out += await print_standard('stamp:', tx, 'A' + asset, p2wsh.length > 0 ? '' : cp_msg);
 
     } else if (id == 22 && blockHeightNum >= 819300) {
-      out += wl('Type', 'Issuance (Olga Stamp)');
+      out += wl('Type', 'Issuance');
       let asset_hex = cp_msg.substring(0, 16);
       let asset = BigInt('0x' + asset_hex).toString(10);
       cp_msg = cp_msg.substring(16);
@@ -750,546 +751,543 @@
       return ret;
     }
 
-    async function print_standard(descr, tx, assetOrCPID, cp_msg) {
+   async function print_standard(descr, tx, assetOrCPID, cp_msg) {
   let out = '';
-  if (descr.toLowerCase().startsWith('stamp:')) {
-    if (/^[a-zA-Z0-9+\/=]+$/.test(descr.substr(6))) {
-      out += wl('Standard', 'STAMP (Classic)');
-      let image = descr.slice(6).replace(/\s/g, '');
-      let paddingNeeded = (4 - (image.length % 4)) % 4;
-      image += '='.repeat(paddingNeeded);
-      console.log(`Classic stamp base64 (cleaned): ${image.slice(0, 50)}...`);
-      if (/^[a-zA-Z0-9+\/=]+$/.test(image) && image.length % 4 === 0) {
-        let file_type = '';
-        let isGzip = image.startsWith('H4sI');
-        let processedImage = image;
-        try {
-          if (isGzip) {
-            console.log('Detected gZIP-compressed Base64 in Classic stamp');
-            let decoded;
-            try {
-              decoded = atob(image);
-              console.log(`Base64 decoded: ${decoded.slice(0, 50)}...`);
-            } catch (e) {
-              out += wl('Error', 'Failed to decode base64 for Classic STAMP: ' + e.message);
-              console.error(`Base64 decode error in Classic stamp: ${e.message}, image=${image.slice(0, 50)}...`);
-              return out;
-            }
-            try {
-              let binary = new Uint8Array(decoded.length);
-              for (let i = 0; i < decoded.length; i++) {
-                binary[i] = decoded.charCodeAt(i);
-              }
-              let decompressed = pako.ungzip(binary, { to: 'string' });
-              processedImage = btoa(decompressed);
-              console.log(`Decompressed gZIP base64: ${processedImage.slice(0, 50)}...`);
-            } catch (e) {
-              out += wl('Error', 'Failed to decompress gZIP data for Classic STAMP: ' + e.message);
-              console.error(`gZIP decompression error in Classic stamp: ${e.message}, image=${image.slice(0, 50)}...`);
-              return out;
-            }
-          }
+  let isClassic = false;
+
+  if (descr.toLowerCase().startsWith('stamp:') && /^[a-zA-Z0-9+\/=]+$/.test(descr.substr(6))) {
+    isClassic = true;
+    out += wl('Standard', 'STAMP (Classic)');
+    let image = descr.slice(6).replace(/\s/g, '');
+    let paddingNeeded = (4 - (image.length % 4)) % 4;
+    image += '='.repeat(paddingNeeded);
+    console.log(`Classic stamp base64 (cleaned): ${image.slice(0, 50)}...`);
+    if (/^[a-zA-Z0-9+\/=]+$/.test(image) && image.length % 4 === 0) {
+      let file_type = '';
+      let isGzip = image.startsWith('H4sI');
+      let processedImage = image;
+      try {
+        if (isGzip) {
+          console.log('Detected gZIP-compressed Base64 in Classic stamp');
           let decoded;
           try {
-            decoded = atob(processedImage);
-            console.log(`Decoded Classic stamp starts with: ${decoded.slice(0, 50)}...`);
+            decoded = atob(image);
+            console.log(`Base64 decoded: ${decoded.slice(0, 50)}...`);
           } catch (e) {
-            out += wl('Error', 'Invalid base64 data for Classic STAMP: ' + e.message);
+            out += wl('Error', 'Failed to decode base64 for Classic STAMP: ' + e.message);
             console.error(`Base64 decode error in Classic stamp: ${e.message}, image=${image.slice(0, 50)}...`);
             return out;
           }
-          if (processedImage.slice(0, 6) === 'R0lGOD') {
-            file_type = 'gif';
-            console.log('Detected GIF in Classic stamp');
-          } else if (processedImage.slice(0, 6) === 'iVBORw') {
-            file_type = 'png';
-            console.log('Detected PNG in Classic stamp');
-          } else if (processedImage.slice(0, 4) === '/9j/') {
-            file_type = 'jpeg';
-            console.log('Detected JPEG in Classic stamp');
-          } else if (processedImage.slice(0, 5) === 'PHN2Z' || processedImage.slice(0, 5) === 'PD94b') {
-            file_type = 'svg+xml';
-            console.log('Detected SVG in Classic stamp');
-          } else if (processedImage.slice(0, 5) === 'UklGR') {
-            file_type = 'webp';
-            console.log('Detected WebP in Classic stamp');
-          } else {
-            file_type = 'html';
-            console.log('Detected HTML in Classic stamp (default)');
-          }
-          
-          out += wl('Compression', isGzip ? 'gZIP' : 'None');
-          if (file_type === 'html') {
-            try {
-              let htmlContent = atob(processedImage);
-              let parser = new DOMParser();
-              let doc = parser.parseFromString(htmlContent, 'text/html');
-              let video = doc.querySelector('video');
-              if (video && video.src) {
-                file_type = 'video';
-                out += wl('MIME Type', 'video/mp4');
-                out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${image}</pre></details></span></div>`;
-                out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + image), 96)}</pre></details></span></div>`;
-                let dimensions = await getImageDimensions(processedImage, file_type);
-                out += wl('Dimensions', dimensions);
-                // Ensure video.src is properly encoded
-                let videoSrc = encodeURI(video.src);
-                console.log('Video source:', videoSrc);
-                out += `<video id="stamp-video-${tx}" class="stamp-video" controls preload="metadata" muted playsinline src="${videoSrc}"></video><br>`;
-                out += `<div class="output-row"><span class="output-label">Note</span><span class="output-value">Tap the video to start playback or adjust volume. If playback fails, ensure the file is valid.</span></div>`;
-                // Store tx for later event listener attachment
-                window.pendingVideoEventListeners = window.pendingVideoEventListeners || [];
-                window.pendingVideoEventListeners.push(tx);
-              } else {
-                out += wl('MIME Type', 'text/html');
-                out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${image}</pre></details></span></div>`;
-                out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + image), 96)}</pre></details></span></div>`;
-                let dimensions = await getImageDimensions(processedImage, file_type);
-                out += wl('Dimensions', dimensions);
-                out += `<iframe class="stamp-iframe" sandbox="allow-scripts" src="data:text/html;base64,${processedImage}"></iframe><br>`;
-              }
-            } catch (e) {
-              out += wl('Error', 'Failed to parse HTML content: ' + e.message);
-              console.error(`HTML parsing error: ${e.message}`);
+          try {
+            let binary = new Uint8Array(decoded.length);
+            for (let i = 0; i < decoded.length; i++) {
+              binary[i] = decoded.charCodeAt(i);
             }
-          } else {
-            out += wl('MIME Type', `image/${file_type}`);
-            out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${image}</pre></details></span></div>`;
-            out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + image), 96)}</pre></details></span></div>`;
-            let dimensions = await getImageDimensions(processedImage, file_type);
-            out += wl('Dimensions', dimensions);
-            out += `<img class="stamp-image" src="data:image/${file_type};base64,${processedImage}" /><br>`;
+            let decompressed = pako.ungzip(binary, { to: 'string' });
+            processedImage = btoa(decompressed);
+            console.log(`Decompressed gZIP base64: ${processedImage.slice(0, 50)}...`);
+          } catch (e) {
+            out += wl('Error', 'Failed to decompress gZIP data for Classic STAMP: ' + e.message);
+            console.error(`gZIP decompression error in Classic stamp: ${e.message}, image=${image.slice(0, 50)}...`);
+            return out;
           }
+        }
+        let decoded;
+        try {
+          decoded = atob(processedImage);
+          console.log(`Decoded Classic stamp starts with: ${decoded.slice(0, 50)}...`);
         } catch (e) {
           out += wl('Error', 'Invalid base64 data for Classic STAMP: ' + e.message);
           console.error(`Base64 decode error in Classic stamp: ${e.message}, image=${image.slice(0, 50)}...`);
+          return out;
         }
-      } else {
-        out += wl('Error', 'Invalid base64 format for Classic STAMP');
-        console.error(`Invalid base64 format: ${image.slice(0, 50)}...`);
+        if (processedImage.slice(0, 6) === 'R0lGOD') {
+          file_type = 'gif';
+          console.log('Detected GIF in Classic stamp');
+        } else if (processedImage.slice(0, 6) === 'iVBORw') {
+          file_type = 'png';
+          console.log('Detected PNG in Classic stamp');
+        } else if (processedImage.slice(0, 4) === '/9j/') {
+          file_type = 'jpeg';
+          console.log('Detected JPEG in Classic stamp');
+        } else if (processedImage.slice(0, 5) === 'PHN2Z' || processedImage.slice(0, 5) === 'PD94b') {
+          file_type = 'svg+xml';
+          console.log('Detected SVG in Classic stamp');
+        } else if (processedImage.slice(0, 5) === 'UklGR') {
+          file_type = 'webp';
+          console.log('Detected WebP in Classic stamp');
+        } else {
+          file_type = 'html';
+          console.log('Detected HTML in Classic stamp (default)');
+        }
+        
+        out += wl('Compression', isGzip ? 'gZIP' : 'None');
+        if (file_type === 'html') {
+          try {
+            let htmlContent = atob(processedImage);
+            let parser = new DOMParser();
+            let doc = parser.parseFromString(htmlContent, 'text/html');
+            let video = doc.querySelector('video');
+            if (video && video.src) {
+              file_type = 'video';
+              out += wl('MIME Type', 'video/mp4');
+              out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${image}</pre></details></span></div>`;
+              out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + image), 96)}</pre></details></span></div>`;
+              let dimensions = await getImageDimensions(processedImage, file_type);
+              out += wl('Dimensions', dimensions);
+              let videoSrc = encodeURI(video.src);
+              console.log('Video source:', videoSrc);
+              out += `<video id="stamp-video-${tx}" class="stamp-video" controls preload="metadata" muted playsinline src="${videoSrc}"></video><br>`;
+              out += `<div class="output-row"><span class="output-label">Note</span><span class="output-value">Tap the video to start playback or adjust volume. If playback fails, ensure the file is valid.</span></div>`;
+              window.pendingVideoEventListeners = window.pendingVideoEventListeners || [];
+              window.pendingVideoEventListeners.push(tx);
+            } else {
+              out += wl('MIME Type', 'text/html');
+              out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${image}</pre></details></span></div>`;
+              out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + image), 96)}</pre></details></span></div>`;
+              let dimensions = await getImageDimensions(processedImage, file_type);
+              out += wl('Dimensions', dimensions);
+              out += `<iframe class="stamp-iframe" sandbox="allow-scripts" src="data:text/html;base64,${processedImage}"></iframe><br>`;
+            }
+          } catch (e) {
+            out += wl('Error', 'Failed to parse HTML content: ' + e.message);
+            console.error(`HTML parsing error: ${e.message}`);
+          }
+        } else {
+          out += wl('MIME Type', `image/${file_type}`);
+          out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${image}</pre></details></span></div>`;
+          out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + image), 96)}</pre></details></span></div>`;
+          let dimensions = await getImageDimensions(processedImage, file_type);
+          out += wl('Dimensions', dimensions);
+          out += `<img class="stamp-image" src="data:image/${file_type};base64,${processedImage}" /><br>`;
+        }
+      } catch (e) {
+        out += wl('Error', 'Invalid base64 data for Classic STAMP: ' + e.message);
+        console.error(`Base64 decode error in Classic stamp: ${e.message}, image=${image.slice(0, 50)}...`);
       }
     } else {
-      out += wl('Standard', 'STAMP (OLGA)');
-      let hex = '';
-      let dust = 0;
-      if (p2wsh.length === 0) {
-        console.log(`No P2WSH outputs; using multisig data for OLGA STAMP: cp_msg=${cp_msg}`);
-        if (!cp_msg || cp_msg.length <= 4) {
-          out += wl('Error', 'No valid multisig data for OLGA STAMP');
-          console.error(`Invalid or missing cp_msg: ${cp_msg}`);
-          return out;
-        }
-        console.log(`Processing multisig data: cp_msg=${cp_msg}`);
-        hex = cp_msg;
-        if (!/^[0-9a-fA-F]+$/.test(hex)) {
-          out += wl('Error', 'Invalid hex format in multisig data for OLGA STAMP');
-          console.error(`Invalid hex: ${hex}`);
-          return out;
-        }
-        let file_size_hex = hex.slice(0, 4);
-        let file_size = parseInt(file_size_hex, 16);
-        console.log(`File size hex=${file_size_hex}, file_size=${file_size}, hex length=${hex.length}`);
-        if (isNaN(file_size) || file_size <= 0 || hex.length < file_size * 2 + 4) {
-          let descr = hex2a(hex);
-          descr = decodeURIComponent(escape(descr));
-          console.log(`Invalid file size, attempting Classic stamp parsing: descr=${descr}`);
-          if (descr.toLowerCase().startsWith('stamp:')) {
-            out += wl('Standard', 'STAMP (Classic)');
-            let image = descr.slice(6).replace(/\s/g, '');
-            let paddingNeeded = (4 - (image.length % 4)) % 4;
-            image += '='.repeat(paddingNeeded);
-            console.log(`Classic stamp base64 (cleaned): ${image.slice(0, 50)}...`);
-            if (/^[a-zA-Z0-9+\/=]+$/.test(image) && image.length % 4 === 0) {
-              let file_type = '';
-              let isGzip = image.startsWith('H4sI');
-              let processedImage = image;
+      out += wl('Error', 'Invalid base64 format for Classic STAMP');
+      console.error(`Invalid base64 format: ${image.slice(0, 50)}...`);
+    }
+    return out; // Exit after processing Classic STAMP
+  }
+
+  // Olga STAMP processing
+  out += wl('Standard', 'STAMP (OLGA)');
+  let hex = '';
+  let dust = 0;
+  if (p2wsh.length === 0) {
+    console.log(`No P2WSH outputs; using multisig data for OLGA STAMP: cp_msg=${cp_msg}`);
+    if (!cp_msg || cp_msg.length <= 4) {
+      out += wl('Error', 'No valid multisig data for OLGA STAMP');
+      console.error(`Invalid or missing cp_msg: ${cp_msg}`);
+      return out;
+    }
+    console.log(`Processing multisig data: cp_msg=${cp_msg}`);
+    hex = cp_msg;
+    if (!/^[0-9a-fA-F]+$/.test(hex)) {
+      out += wl('Error', 'Invalid hex format in multisig data for OLGA STAMP');
+      console.error(`Invalid hex: ${hex}`);
+      return out;
+    }
+    let file_size_hex = hex.slice(0, 4);
+    let file_size = parseInt(file_size_hex, 16);
+    console.log(`File size hex=${file_size_hex}, file_size=${file_size}, hex length=${hex.length}`);
+    if (isNaN(file_size) || file_size <= 0 || hex.length < file_size * 2 + 4) {
+      let descr = hex2a(hex);
+      descr = decodeURIComponent(escape(descr));
+      console.log(`Invalid file size, attempting Classic stamp parsing: descr=${descr}`);
+      if (descr.toLowerCase().startsWith('stamp:') && /^[a-zA-Z0-9+\/=]+$/.test(descr.substr(6))) {
+        isClassic = true;
+        out = ''; // Clear previous Olga output
+        out += wl('Standard', 'STAMP (Classic)');
+        let image = descr.slice(6).replace(/\s/g, '');
+        let paddingNeeded = (4 - (image.length % 4)) % 4;
+        image += '='.repeat(paddingNeeded);
+        console.log(`Classic stamp base64 (cleaned): ${image.slice(0, 50)}...`);
+        if (/^[a-zA-Z0-9+\/=]+$/.test(image) && image.length % 4 === 0) {
+          let file_type = '';
+          let isGzip = image.startsWith('H4sI');
+          let processedImage = image;
+          try {
+            if (isGzip) {
+              console.log('Detected gZIP-compressed Base64 in Classic fallback');
+              let decoded;
               try {
-                if (isGzip) {
-                  console.log('Detected gZIP-compressed Base64 in Classic fallback');
-                  let decoded;
-                  try {
-                    decoded = atob(image);
-                  } catch (e) {
-                    out += wl('Error', 'Failed to decode base64 for Classic STAMP: ' + e.message);
-                    console.error(`Base64 decode error in Classic stamp: ${e.message}, image=${image.slice(0, 50)}...`);
-                    return out;
-                  }
-                  try {
-                    let binary = new Uint8Array(decoded.length);
-                    for (let i = 0; i < decoded.length; i++) {
-                      binary[i] = decoded.charCodeAt(i);
-                    }
-                    let decompressed = pako.ungzip(binary, { to: 'string' });
-                    processedImage = btoa(decompressed);
-                    console.log(`Decompressed gZIP base64: ${processedImage.slice(0, 50)}...`);
-                  } catch (e) {
-                    out += wl('Error', 'Failed to decompress gZIP data for Classic STAMP: ' + e.message);
-                    console.error(`gZIP decompression error in Classic stamp: ${e.message}, image=${image.slice(0, 50)}...`);
-                    return out;
-                  }
+                decoded = atob(image);
+              } catch (e) {
+                out += wl('Error', 'Failed to decode base64 for Classic STAMP: ' + e.message);
+                console.error(`Base64 decode error in Classic stamp: ${e.message}, image=${image.slice(0, 50)}...`);
+                return out;
+              }
+              try {
+                let binary = new Uint8Array(decoded.length);
+                for (let i = 0; i < decoded.length; i++) {
+                  binary[i] = decoded.charCodeAt(i);
                 }
-                let decoded;
-                try {
-                  decoded = atob(processedImage);
-                  console.log(`Decoded Classic stamp starts with: ${decoded.slice(0, 50)}...`);
-                } catch (e) {
-                  out += wl('Error', 'Invalid base64 data for Classic STAMP: ' + e.message);
-                  console.error(`Base64 decode error in Classic stamp: ${e.message}, image=${image.slice(0, 50)}...`);
-                  return out;
-                }
-                if (processedImage.slice(0, 6) === 'R0lGOD') {
-                  file_type = 'gif';
-                  console.log('Detected GIF in Classic stamp');
-                } else if (processedImage.slice(0, 6) === 'iVBORw') {
-                  file_type = 'png';
-                  console.log('Detected PNG in Classic stamp');
-                } else if (processedImage.slice(0, 4) === '/9j/') {
-                  file_type = 'jpeg';
-                  console.log('Detected JPEG in Classic stamp');
-                } else if (processedImage.slice(0, 5) === 'PHN2Z' || processedImage.slice(0, 5) === 'PD94b') {
-                  file_type = 'svg+xml';
-                  console.log('Detected SVG in Classic stamp');
-                } else if (processedImage.slice(0, 5) === 'UklGR') {
-                  file_type = 'webp';
-                  console.log('Detected WebP in Classic stamp');
-                } else {
-                  file_type = 'html';
-                  console.log('Detected HTML in Classic stamp (default)');
-                }
-                
-                out += wl('Compression', isGzip ? 'gZIP' : 'None');
-                if (file_type === 'html') {
-                  try {
-                    let htmlContent = atob(processedImage);
-                    let parser = new DOMParser();
-                    let doc = parser.parseFromString(htmlContent, 'text/html');
-                    let video = doc.querySelector('video');
-                    if (video && video.src) {
-                      file_type = 'video';
-                      out += wl('MIME Type', 'video/mp4');
-                      out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${image}</pre></details></span></div>`;
-                      out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + image), 96)}</pre></details></span></div>`;
-                      let dimensions = await getImageDimensions(processedImage, file_type);
-                      out += wl('Dimensions', dimensions);
-                      // Ensure video.src is properly encoded
-                      let videoSrc = encodeURI(video.src);
-                      console.log('Video source:', videoSrc);
-                      out += `<video id="stamp-video-${tx}" class="stamp-video" controls preload="metadata" muted playsinline src="${videoSrc}"></video><br>`;
-                      out += `<div class="output-row"><span class="output-label">Note</span><span class="output-value">Tap the video to start playback or adjust volume. If playback fails, ensure the file is valid.</span></div>`;
-                      // Store tx for later event listener attachment
-                      window.pendingVideoEventListeners = window.pendingVideoEventListeners || [];
-                      window.pendingVideoEventListeners.push(tx);
-                    } else {
-                      out += wl('MIME Type', 'text/html');
-                      out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${image}</pre></details></span></div>`;
-                      out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + image), 96)}</pre></details></span></div>`;
-                      let dimensions = await getImageDimensions(processedImage, file_type);
-                      out += wl('Dimensions', dimensions);
-                      out += `<iframe class="stamp-iframe" sandbox="allow-scripts" src="data:text/html;base64,${processedImage}"></iframe><br>`;
-                    }
-                  } catch (e) {
-                    out += wl('Error', 'Failed to parse HTML content: ' + e.message);
-                    console.error(`HTML parsing error: ${e.message}`);
-                  }
-                } else {
-                  out += wl('MIME Type', `image/${file_type}`);
+                let decompressed = pako.ungzip(binary, { to: 'string' });
+                processedImage = btoa(decompressed);
+                console.log(`Decompressed gZIP base64: ${processedImage.slice(0, 50)}...`);
+              } catch (e) {
+                out += wl('Error', 'Failed to decompress gZIP data for Classic STAMP: ' + e.message);
+                console.error(`gZIP decompression error in Classic stamp: ${e.message}, image=${image.slice(0, 50)}...`);
+                return out;
+              }
+            }
+            let decoded;
+            try {
+              decoded = atob(processedImage);
+              console.log(`Decoded Classic stamp starts with: ${decoded.slice(0, 50)}...`);
+            } catch (e) {
+              out += wl('Error', 'Invalid base64 data for Classic STAMP: ' + e.message);
+              console.error(`Base64 decode error in Classic stamp: ${e.message}, image=${image.slice(0, 50)}...`);
+              return out;
+            }
+            if (processedImage.slice(0, 6) === 'R0lGOD') {
+              file_type = 'gif';
+              console.log('Detected GIF in Classic stamp');
+            } else if (processedImage.slice(0, 6) === 'iVBORw') {
+              file_type = 'png';
+              console.log('Detected PNG in Classic stamp');
+            } else if (processedImage.slice(0, 4) === '/9j/') {
+              file_type = 'jpeg';
+              console.log('Detected JPEG in Classic stamp');
+            } else if (processedImage.slice(0, 5) === 'PHN2Z' || processedImage.slice(0, 5) === 'PD94b') {
+              file_type = 'svg+xml';
+              console.log('Detected SVG in Classic stamp');
+            } else if (processedImage.slice(0, 5) === 'UklGR') {
+              file_type = 'webp';
+              console.log('Detected WebP in Classic stamp');
+            } else {
+              file_type = 'html';
+              console.log('Detected HTML in Classic stamp (default)');
+            }
+            
+            out += wl('Compression', isGzip ? 'gZIP' : 'None');
+            if (file_type === 'html') {
+              try {
+                let htmlContent = atob(processedImage);
+                let parser = new DOMParser();
+                let doc = parser.parseFromString(htmlContent, 'text/html');
+                let video = doc.querySelector('video');
+                if (video && video.src) {
+                  file_type = 'video';
+                  out += wl('MIME Type', 'video/mp4');
                   out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${image}</pre></details></span></div>`;
                   out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + image), 96)}</pre></details></span></div>`;
                   let dimensions = await getImageDimensions(processedImage, file_type);
                   out += wl('Dimensions', dimensions);
-                  out += `<img class="stamp-image" src="data:image/${file_type};base64,${processedImage}" /><br>`;
+                  let videoSrc = encodeURI(video.src);
+                  console.log('Video source:', videoSrc);
+                  out += `<video id="stamp-video-${tx}" class="stamp-video" controls preload="metadata" muted playsinline src="${videoSrc}"></video><br>`;
+                  out += `<div class="output-row"><span class="output-label">Note</span><span class="output-value">Tap the video to start playback or adjust volume. If playback fails, ensure the file is valid.</span></div>`;
+                  window.pendingVideoEventListeners = window.pendingVideoEventListeners || [];
+                  window.pendingVideoEventListeners.push(tx);
+                } else {
+                  out += wl('MIME Type', 'text/html');
+                  out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${image}</pre></details></span></div>`;
+                  out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + image), 96)}</pre></details></span></div>`;
+                  let dimensions = await getImageDimensions(processedImage, file_type);
+                  out += wl('Dimensions', dimensions);
+                  out += `<iframe class="stamp-iframe" sandbox="allow-scripts" src="data:text/html;base64,${processedImage}"></iframe><br>`;
                 }
               } catch (e) {
-                out += wl('Error', 'Invalid base64 data for Classic STAMP: ' + e.message);
-                console.error(`Base64 decode error in Classic stamp: ${e.message}, image=${image.slice(0, 50)}...`);
+                out += wl('Error', 'Failed to parse HTML content: ' + e.message);
+                console.error(`HTML parsing error: ${e.message}`);
               }
             } else {
-              out += wl('Error', 'Invalid base64 format for Classic STAMP');
-              console.error(`Invalid base64 format: ${image.slice(0, 50)}...`);
+              out += wl('MIME Type', `image/${file_type}`);
+              out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${image}</pre></details></span></div>`;
+              out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + image), 96)}</pre></details></span></div>`;
+              let dimensions = await getImageDimensions(processedImage, file_type);
+              out += wl('Dimensions', dimensions);
+              out += `<img class="stamp-image" src="data:image/${file_type};base64,${processedImage}" /><br>`;
             }
-            return out;
-          } else {
-            out += wl('Error', `Invalid or insufficient multisig data for file size: file_size=${file_size}, hex length=${hex.length}, required=${file_size * 2 + 4}`);
-            console.error(`Invalid file size: ${file_size}, hex=${hex}`);
-            return out;
-          }
-        }
-        let file = hex.slice(4, 4 + file_size * 2);
-        console.log(`Extracted file data: file=${file}`);
-        let hexPairs = file.match(/\w{2}/g);
-        if (!hexPairs) {
-          out += wl('Error', 'Invalid multisig data format for OLGA STAMP');
-          console.error(`Invalid file data: ${file}`);
-          return out;
-        }
-        let base64 = '';
-        try {
-          base64 = btoa(hexPairs.map(y => String.fromCharCode(parseInt(y, 16))).join(''));
-          console.log(`Olga stamp base64: ${base64.slice(0, 50)}...`);
-        } catch (e) {
-          out += wl('Error', 'Failed to convert multisig data to base64: ' + e.message);
-          console.error(`Base64 conversion error: ${e.message}, file=${file}`);
-          return out;
-        }
-        if (!base64 || base64 === '') {
-          out += wl('Error', 'Base64 data is undefined or empty for OLGA STAMP');
-          console.error(`Base64 is undefined or empty: file=${file}`);
-          return out;
-        }
-        let file_type = '';
-        let isGzip = base64.startsWith('H4sI');
-        let processedBase64 = base64;
-        try {
-          if (isGzip) {
-            console.log('Detected gZIP-compressed Base64 in Olga stamp');
-            let decoded;
-            try {
-              decoded = atob(base64);
-              console.log(`Base64 decoded: ${decoded.slice(0, 50)}...`);
-            } catch (e) {
-              out += wl('Error', 'Failed to decode base64 for OLGA STAMP: ' + e.message);
-              console.error(`Base64 decode error in Olga stamp: ${e.message}, base64=${base64.slice(0, 50)}...`);
-              return out;
-            }
-            try {
-              let binary = new Uint8Array(decoded.length);
-              for (let i = 0; i < decoded.length; i++) {
-                binary[i] = decoded.charCodeAt(i);
-              }
-              let decompressed = pako.ungzip(binary, { to: 'string' });
-              processedBase64 = btoa(decompressed);
-              console.log(`Decompressed gZIP base64: ${processedBase64.slice(0, 50)}...`);
-            } catch (e) {
-              out += wl('Error', 'Failed to decompress gZIP data for OLGA STAMP: ' + e.message);
-              console.error(`gZIP decompression error in Olga stamp: ${e.message}, base64=${base64.slice(0, 50)}...`);
-              return out;
-            }
-          }
-          let decoded;
-          try {
-            decoded = atob(processedBase64);
-            console.log(`Decoded Olga stamp starts with: ${decoded.slice(0, 50)}...`);
           } catch (e) {
-            out += wl('Error', 'Invalid base64 data for OLGA STAMP: ' + e.message);
-            console.error(`Base64 decode error in Olga stamp: ${e.message}, base64=${base64.slice(0, 50)}...`);
-            return out;
+            out += wl('Error', 'Invalid base64 data for Classic STAMP: ' + e.message);
+            console.error(`Base64 decode error in Classic stamp: ${e.message}, image=${image.slice(0, 50)}...`);
           }
-          if (processedBase64.slice(0, 6) === 'R0lGOD') {
-            file_type = 'gif';
-            console.log('Detected GIF in Olga stamp');
-          } else if (processedBase64.slice(0, 6) === 'iVBORw') {
-            file_type = 'png';
-            console.log('Detected PNG in Olga stamp');
-          } else if (processedBase64.slice(0, 4) === '/9j/') {
-            file_type = 'jpeg';
-            console.log('Detected JPEG in Olga stamp');
-          } else if (processedBase64.slice(0, 5) === 'PHN2Z' || processedBase64.slice(0, 5) === 'PD94b') {
-            file_type = 'svg+xml';
-            console.log('Detected SVG in Olga stamp');
-          } else if (processedBase64.slice(0, 5) === 'UklGR') {
-            file_type = 'webp';
-            console.log('Detected WebP in Olga stamp');
-          } else {
-            file_type = 'html';
-            console.log('Detected HTML in Olga stamp (default)');
-          }
-
-          out += wl('File size (bytes)', file_size);
-          out += wl('Burned (sat)', dust);
-          out += wl('Burned (btc)', (dust / 100000000).toFixed(8));
-          out += wl('Asset', assetOrCPID);
-          out += wl('Compression', isGzip ? 'gZIP' : 'None');
-          if (file_type === 'html') {
-            try {
-              let htmlContent = atob(processedBase64);
-              let parser = new DOMParser();
-              let doc = parser.parseFromString(htmlContent, 'text/html');
-              let video = doc.querySelector('video');
-              if (video && video.src) {
-                file_type = 'video';
-                out += wl('MIME Type', 'video/mp4');
-                out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${base64}</pre></details></span></div>`;
-                out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + base64), 96)}</pre></details></span></div>`;
-                let dimensions = await getImageDimensions(processedBase64, file_type);
-                out += wl('Dimensions', dimensions);
-                // Ensure video.src is properly encoded
-                let videoSrc = encodeURI(video.src);
-                console.log('Video source:', videoSrc);
-                out += `<video id="stamp-video-${tx}" class="stamp-video" controls preload="metadata" muted playsinline src="${videoSrc}"></video><br>`;
-                out += `<div class="output-row"><span class="output-label">Note</span><span class="output-value">Tap the video to start playback or adjust volume. If playback fails, ensure the file is valid.</span></div>`;
-                // Store tx for later event listener attachment
-                window.pendingVideoEventListeners = window.pendingVideoEventListeners || [];
-                window.pendingVideoEventListeners.push(tx);
-              } else {
-                out += wl('MIME Type', 'text/html');
-                out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${base64}</pre></details></span></div>`;
-                out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + base64), 96)}</pre></details></span></div>`;
-                let dimensions = await getImageDimensions(processedBase64, file_type);
-                out += wl('Dimensions', dimensions);
-                out += `<iframe class="stamp-iframe" sandbox="allow-scripts" src="data:text/html;base64,${processedBase64}"></iframe><br>`;
-              }
-            } catch (e) {
-              out += wl('Error', 'Failed to parse HTML content: ' + e.message);
-              console.error(`HTML parsing error: ${e.message}`);
-            }
-          } else {
-            out += wl('MIME Type', `image/${file_type}`);
-            out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${base64}</pre></details></span></div>`;
-            out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + base64), 96)}</pre></details></span></div>`;
-            let dimensions = await getImageDimensions(processedBase64, file_type);
-            out += wl('Dimensions', dimensions);
-            out += `<img class="stamp-image" src="data:image/${file_type};base64,${processedBase64}" /><br>`;
-          }
-        } catch (e) {
-          out += wl('Error', 'Invalid base64 data for OLGA STAMP: ' + e.message);
-          console.error(`Base64 validation error: ${e.message}, base64=${base64.slice(0, 50)}...`);
+        } else {
+          out += wl('Error', 'Invalid base64 format for Classic STAMP');
+          console.error(`Invalid base64 format: ${image.slice(0, 50)}...`);
         }
+        return out; // Exit after processing Classic STAMP in fallback
       } else {
-        let hex = '';
-        let dust = 0;
-        for (let i = 0; i < p2wsh.length; i++) {
-          hex += p2wsh[i][0].slice(4);
-          dust += p2wsh[i][1];
-        }
-        let file_size_hex = hex.slice(0, 4);
-        let file_size = parseInt(file_size_hex, 16);
-        console.log(`P2WSH file size hex=${file_size_hex}, file_size=${file_size}, hex length=${hex.length}`);
-        if (isNaN(file_size) || file_size <= 0 || hex.length < file_size * 2 + 4) {
-          out += wl('Error', `Invalid or insufficient P2WSH data for file size: file_size=${file_size}, hex length=${hex.length}, required=${file_size * 2 + 4}`);
-          console.error(`Invalid P2WSH file size: ${file_size}, hex=${hex}`);
-          return out;
-        }
-        let file = hex.slice(4, 4 + file_size * 2);
-        console.log(`P2WSH file data: file=${file}`);
-        let hexPairs = file.match(/\w{2}/g);
-        if (!hexPairs) {
-          out += wl('Error', 'Invalid P2WSH data format for OLGA STAMP');
-          console.error(`Invalid P2WSH file data: ${file}`);
-          return out;
-        }
-        let base64 = '';
+        out += wl('Error', `Invalid or insufficient multisig data for file size: file_size=${file_size}, hex length=${hex.length}, required=${file_size * 2 + 4}`);
+        console.error(`Invalid file size: ${file_size}, hex=${hex}`);
+        return out;
+      }
+    }
+    let file = hex.slice(4, 4 + file_size * 2);
+    console.log(`Extracted file data: file=${file}`);
+    let hexPairs = file.match(/\w{2}/g);
+    if (!hexPairs) {
+      out += wl('Error', 'Invalid multisig data format for OLGA STAMP');
+      console.error(`Invalid file data: ${file}`);
+      return out;
+    }
+    let base64 = '';
+    try {
+      base64 = btoa(hexPairs.map(y => String.fromCharCode(parseInt(y, 16))).join(''));
+      console.log(`Olga stamp base64: ${base64.slice(0, 50)}...`);
+    } catch (e) {
+      out += wl('Error', 'Failed to convert multisig data to base64: ' + e.message);
+      console.error(`Base64 conversion error: ${e.message}, file=${file}`);
+      return out;
+    }
+    if (!base64 || base64 === '') {
+      out += wl('Error', 'Base64 data is undefined or empty for OLGA STAMP');
+      console.error(`Base64 is undefined or empty: file=${file}`);
+      return out;
+    }
+    let file_type = '';
+    let isGzip = base64.startsWith('H4sI');
+    let processedBase64 = base64;
+    try {
+      if (isGzip) {
+        console.log('Detected gZIP-compressed Base64 in Olga stamp');
+        let decoded;
         try {
-          base64 = btoa(hexPairs.map(y => String.fromCharCode(parseInt(y, 16))).join(''));
-          console.log(`P2WSH base64: ${base64.slice(0, 50)}...`);
+          decoded = atob(base64);
+          console.log(`Base64 decoded: ${decoded.slice(0, 50)}...`);
         } catch (e) {
-          out += wl('Error', 'Failed to convert P2WSH data to base64: ' + e.message);
-          console.error(`P2WSH base64 conversion error: ${e.message}, file=${file}`);
+          out += wl('Error', 'Failed to decode base64 for OLGA STAMP: ' + e.message);
+          console.error(`Base64 decode error in Olga stamp: ${e.message}, base64=${base64.slice(0, 50)}...`);
           return out;
         }
-        if (!base64 || base64 === '') {
-          out += wl('Error', 'Base64 data is undefined or empty for OLGA STAMP');
-          console.error(`Base64 is undefined or empty: file=${file}`);
-          return out;
-        }
-        let file_type = '';
-        let isGzip = base64.startsWith('H4sI');
-        let processedBase64 = base64;
         try {
-          if (isGzip) {
-            console.log('Detected gZIP-compressed Base64 in P2WSH');
-            let decoded;
-            try {
-              decoded = atob(base64);
-              console.log(`Base64 decoded: ${decoded.slice(0, 50)}...`);
-            } catch (e) {
-              out += wl('Error', 'Failed to decode base64 for OLGA STAMP (P2WSH): ' + e.message);
-              console.error(`Base64 decode error in P2WSH: ${e.message}, base64=${base64.slice(0, 50)}...`);
-              return out;
-            }
-            try {
-              let binary = new Uint8Array(decoded.length);
-              for (let i = 0; i < decoded.length; i++) {
-                binary[i] = decoded.charCodeAt(i);
-              }
-              let decompressed = pako.ungzip(binary, { to: 'string' });
-              processedBase64 = btoa(decompressed);
-              console.log(`Decompressed gZIP base64: ${processedBase64.slice(0, 50)}...`);
-            } catch (e) {
-              out += wl('Error', 'Failed to decompress gZIP data for OLGA STAMP (P2WSH): ' + e.message);
-              console.error(`gZIP decompression error in P2WSH: ${e.message}, base64=${base64.slice(0, 50)}...`);
-              return out;
-            }
+          let binary = new Uint8Array(decoded.length);
+          for (let i = 0; i < decoded.length; i++) {
+            binary[i] = decoded.charCodeAt(i);
           }
-          let decoded;
-          try {
-            decoded = atob(processedBase64);
-            console.log(`Decoded P2WSH starts with: ${decoded.slice(0, 50)}...`);
-          } catch (e) {
-            out += wl('Error', 'Invalid base64 data for OLGA STAMP (P2WSH): ' + e.message);
-            console.error(`Base64 decode error in P2WSH: ${e.message}, base64=${base64.slice(0, 50)}...`);
-            return out;
-          }
-          if (processedBase64.slice(0, 6) === 'R0lGOD') {
-            file_type = 'gif';
-            console.log('Detected GIF in P2WSH');
-          } else if (processedBase64.slice(0, 6) === 'iVBORw') {
-            file_type = 'png';
-            console.log('Detected PNG in P2WSH');
-          } else if (processedBase64.slice(0, 4) === '/9j/') {
-            file_type = 'jpeg';
-            console.log('Detected JPEG in P2WSH');
-          } else if (processedBase64.slice(0, 5) === 'PHN2Z' || processedBase64.slice(0, 5) === 'PD94b') {
-            file_type = 'svg+xml';
-            console.log('Detected SVG in P2WSH');
-          } else if (processedBase64.slice(0, 5) === 'UklGR') {
-            file_type = 'webp';
-            console.log('Detected WebP in P2WSH');
-          } else {
-            file_type = 'html';
-            console.log('Detected HTML in P2WSH (default)');
-          }
-
-          out += wl('File size (byte)', file_size);
-          out += wl('Burned (sat)', dust);
-          out += wl('Burned (btc)', (dust / 100000000).toFixed(8));
-          out += wl('Asset', assetOrCPID);
-          out += wl('Compression', isGzip ? 'gZIP' : 'None');
-          if (file_type === 'html') {
-            try {
-              let htmlContent = atob(processedBase64);
-              let parser = new DOMParser();
-              let doc = parser.parseFromString(htmlContent, 'text/html');
-              let video = doc.querySelector('video');
-              if (video && video.src) {
-                file_type = 'video';
-                out += wl('MIME Type', 'video/mp4');
-                out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${base64}</pre></details></span></div>`;
-                out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + base64), 96)}</pre></details></span></div>`;
-                let dimensions = await getImageDimensions(processedBase64, file_type);
-                out += wl('Dimensions', dimensions);
-                // Ensure video.src is properly encoded
-                let videoSrc = encodeURI(video.src);
-                console.log('Video source:', videoSrc);
-                out += `<video id="stamp-video-${tx}" class="stamp-video" controls preload="metadata" muted playsinline src="${videoSrc}"></video><br>`;
-                out += `<div class="output-row"><span class="output-label">Note</span><span class="output-value">Tap the video to start playback or adjust volume. If playback fails, ensure the file is valid.</span></div>`;
-                // Store tx for later event listener attachment
-                window.pendingVideoEventListeners = window.pendingVideoEventListeners || [];
-                window.pendingVideoEventListeners.push(tx);
-              } else {
-                out += wl('MIME Type', 'text/html');
-                out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${base64}</pre></details></span></div>`;
-                out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + base64), 96)}</pre></details></span></div>`;
-                let dimensions = await getImageDimensions(processedBase64, file_type);
-                out += wl('Dimensions', dimensions);
-                out += `<iframe class="stamp-iframe" sandbox="allow-scripts" src="data:text/html;base64,${processedBase64}"></iframe><br>`;
-              }
-            } catch (e) {
-              out += wl('Error', 'Failed to parse HTML content: ' + e.message);
-              console.error(`HTML parsing error: ${e.message}`);
-            }
-          } else {
-            out += wl('MIME Type', `image/${file_type}`);
-            out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${base64}</pre></details></span></div>`;
-            out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + base64), 96)}</pre></details></span></div>`;
-            let dimensions = await getImageDimensions(processedBase64, file_type);
-            out += wl('Dimensions', dimensions);
-            out += `<img class="stamp-image" src="data:image/${file_type};base64,${processedBase64}" /><br>`;
-          }
+          let decompressed = pako.ungzip(binary, { to: 'string' });
+          processedBase64 = btoa(decompressed);
+          console.log(`Decompressed gZIP base64: ${processedBase64.slice(0, 50)}...`);
         } catch (e) {
-          out += wl('Error', 'Invalid base64 data for OLGA STAMP (P2WSH): ' + e.message);
-          console.error(`Base64 validation error in P2WSH: ${e.message}, base64=${base64.slice(0, 50)}...`);
+          out += wl('Error', 'Failed to decompress gZIP data for OLGA STAMP: ' + e.message);
+          console.error(`gZIP decompression error in Olga stamp: ${e.message}, base64=${base64.slice(0, 50)}...`);
+          return out;
         }
       }
+      let decoded;
+      try {
+        decoded = atob(processedBase64);
+        console.log(`Decoded Olga stamp starts with: ${decoded.slice(0, 50)}...`);
+      } catch (e) {
+        out += wl('Error', 'Invalid base64 data for OLGA STAMP: ' + e.message);
+        console.error(`Base64 decode error in Olga stamp: ${e.message}, base64=${base64.slice(0, 50)}...`);
+        return out;
+      }
+      if (processedBase64.slice(0, 6) === 'R0lGOD') {
+        file_type = 'gif';
+        console.log('Detected GIF in Olga stamp');
+      } else if (processedBase64.slice(0, 6) === 'iVBORw') {
+        file_type = 'png';
+        console.log('Detected PNG in Olga stamp');
+      } else if (processedBase64.slice(0, 4) === '/9j/') {
+        file_type = 'jpeg';
+        console.log('Detected JPEG in Olga stamp');
+      } else if (processedBase64.slice(0, 5) === 'PHN2Z' || processedBase64.slice(0, 5) === 'PD94b') {
+        file_type = 'svg+xml';
+        console.log('Detected SVG in Olga stamp');
+      } else if (processedBase64.slice(0, 5) === 'UklGR') {
+        file_type = 'webp';
+        console.log('Detected WebP in Olga stamp');
+      } else {
+        file_type = 'html';
+        console.log('Detected HTML in Olga stamp (default)');
+      }
+
+      out += wl('File size (bytes)', file_size);
+      out += wl('Burned (sat)', dust);
+      out += wl('Burned (btc)', (dust / 100000000).toFixed(8));
+      out += wl('Asset', assetOrCPID);
+      out += wl('Compression', isGzip ? 'gZIP' : 'None');
+      if (file_type === 'html') {
+        try {
+          let htmlContent = atob(processedBase64);
+          let parser = new DOMParser();
+          let doc = parser.parseFromString(htmlContent, 'text/html');
+          let video = doc.querySelector('video');
+          if (video && video.src) {
+            file_type = 'video';
+            out += wl('MIME Type', 'video/mp4');
+            out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${base64}</pre></details></span></div>`;
+            out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + base64), 96)}</pre></details></span></div>`;
+            let dimensions = await getImageDimensions(processedBase64, file_type);
+            out += wl('Dimensions', dimensions);
+            let videoSrc = encodeURI(video.src);
+            console.log('Video source:', videoSrc);
+            out += `<video id="stamp-video-${tx}" class="stamp-video" controls preload="metadata" muted playsinline src="${videoSrc}"></video><br>`;
+            out += `<div class="output-row"><span class="output-label">Note</span><span class="output-value">Tap the video to start playback or adjust volume. If playback fails, ensure the file is valid.</span></div>`;
+            window.pendingVideoEventListeners = window.pendingVideoEventListeners || [];
+            window.pendingVideoEventListeners.push(tx);
+          } else {
+            out += wl('MIME Type', 'text/html');
+            out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${base64}</pre></details></span></div>`;
+            out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + base64), 96)}</pre></details></span></div>`;
+            let dimensions = await getImageDimensions(processedBase64, file_type);
+            out += wl('Dimensions', dimensions);
+            out += `<iframe class="stamp-iframe" sandbox="allow-scripts" src="data:text/html;base64,${processedBase64}"></iframe><br>`;
+          }
+        } catch (e) {
+          out += wl('Error', 'Failed to parse HTML content: ' + e.message);
+          console.error(`HTML parsing error: ${e.message}`);
+        }
+      } else {
+        out += wl('MIME Type', `image/${file_type}`);
+        out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${base64}</pre></details></span></div>`;
+        out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + base64), 96)}</pre></details></span></div>`;
+        let dimensions = await getImageDimensions(processedBase64, file_type);
+        out += wl('Dimensions', dimensions);
+        out += `<img class="stamp-image" src="data:image/${file_type};base64,${processedBase64}" /><br>`;
+      }
+    } catch (e) {
+      out += wl('Error', 'Invalid base64 data for OLGA STAMP: ' + e.message);
+      console.error(`Base64 validation error: ${e.message}, base64=${base64.slice(0, 50)}...`);
+    }
+  } else {
+    let hex = '';
+    let dust = 0;
+    for (let i = 0; i < p2wsh.length; i++) {
+      hex += p2wsh[i][0].slice(4);
+      dust += p2wsh[i][1];
+    }
+    let file_size_hex = hex.slice(0, 4);
+    let file_size = parseInt(file_size_hex, 16);
+    console.log(`P2WSH file size hex=${file_size_hex}, file_size=${file_size}, hex length=${hex.length}`);
+    if (isNaN(file_size) || file_size <= 0 || hex.length < file_size * 2 + 4) {
+      out += wl('Error', `Invalid or insufficient P2WSH data for file size: file_size=${file_size}, hex length=${hex.length}, required=${file_size * 2 + 4}`);
+      console.error(`Invalid P2WSH file size: ${file_size}, hex=${hex}`);
+      return out;
+    }
+    let file = hex.slice(4, 4 + file_size * 2);
+    console.log(`P2WSH file data: file=${file}`);
+    let hexPairs = file.match(/\w{2}/g);
+    if (!hexPairs) {
+      out += wl('Error', 'Invalid P2WSH data format for OLGA STAMP');
+      console.error(`Invalid P2WSH file data: ${file}`);
+      return out;
+    }
+    let base64 = '';
+    try {
+      base64 = btoa(hexPairs.map(y => String.fromCharCode(parseInt(y, 16))).join(''));
+      console.log(`P2WSH base64: ${base64.slice(0, 50)}...`);
+    } catch (e) {
+      out += wl('Error', 'Failed to convert P2WSH data to base64: ' + e.message);
+      console.error(`P2WSH base64 conversion error: ${e.message}, file=${file}`);
+      return out;
+    }
+    if (!base64 || base64 === '') {
+      out += wl('Error', 'Base64 data is undefined or empty for OLGA STAMP');
+      console.error(`Base64 is undefined or empty: file=${file}`);
+      return out;
+    }
+    let file_type = '';
+    let isGzip = base64.startsWith('H4sI');
+    let processedBase64 = base64;
+    try {
+      if (isGzip) {
+        console.log('Detected gZIP-compressed Base64 in P2WSH');
+        let decoded;
+        try {
+          decoded = atob(base64);
+          console.log(`Base64 decoded: ${decoded.slice(0, 50)}...`);
+        } catch (e) {
+          out += wl('Error', 'Failed to decode base64 for OLGA STAMP (P2WSH): ' + e.message);
+          console.error(`Base64 decode error in P2WSH: ${e.message}, base64=${base64.slice(0, 50)}...`);
+          return out;
+        }
+        try {
+          let binary = new Uint8Array(decoded.length);
+          for (let i = 0; i < decoded.length; i++) {
+            binary[i] = decoded.charCodeAt(i);
+          }
+          let decompressed = pako.ungzip(binary, { to: 'string' });
+          processedBase64 = btoa(decompressed);
+          console.log(`Decompressed gZIP base64: ${processedBase64.slice(0, 50)}...`);
+        } catch (e) {
+          out += wl('Error', 'Failed to decompress gZIP data for OLGA STAMP (P2WSH): ' + e.message);
+          console.error(`gZIP decompression error in P2WSH: ${e.message}, base64=${base64.slice(0, 50)}...`);
+          return out;
+        }
+      }
+      let decoded;
+      try {
+        decoded = atob(processedBase64);
+        console.log(`Decoded P2WSH starts with: ${decoded.slice(0, 50)}...`);
+      } catch (e) {
+        out += wl('Error', 'Invalid base64 data for OLGA STAMP (P2WSH): ' + e.message);
+        console.error(`Base64 decode error in P2WSH: ${e.message}, base64=${base64.slice(0, 50)}...`);
+        return out;
+      }
+      if (processedBase64.slice(0, 6) === 'R0lGOD') {
+        file_type = 'gif';
+        console.log('Detected GIF in P2WSH');
+      } else if (processedBase64.slice(0, 6) === 'iVBORw') {
+        file_type = 'png';
+        console.log('Detected PNG in P2WSH');
+      } else if (processedBase64.slice(0, 4) === '/9j/') {
+        file_type = 'jpeg';
+        console.log('Detected JPEG in P2WSH');
+      } else if (processedBase64.slice(0, 5) === 'PHN2Z' || processedBase64.slice(0, 5) === 'PD94b') {
+        file_type = 'svg+xml';
+        console.log('Detected SVG in P2WSH');
+      } else if (processedBase64.slice(0, 5) === 'UklGR') {
+        file_type = 'webp';
+        console.log('Detected WebP in P2WSH');
+      } else {
+        file_type = 'html';
+        console.log('Detected HTML in P2WSH (default)');
+      }
+
+      out += wl('File size (byte)', file_size);
+      out += wl('Burned (sat)', dust);
+      out += wl('Burned (btc)', (dust / 100000000).toFixed(8));
+      out += wl('Asset', assetOrCPID);
+      out += wl('Compression', isGzip ? 'gZIP' : 'None');
+      if (file_type === 'html') {
+        try {
+          let htmlContent = atob(processedBase64);
+          let parser = new DOMParser();
+          let doc = parser.parseFromString(htmlContent, 'text/html');
+          let video = doc.querySelector('video');
+          if (video && video.src) {
+            file_type = 'video';
+            out += wl('MIME Type', 'video/mp4');
+            out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${base64}</pre></details></span></div>`;
+            out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + base64), 96)}</pre></details></span></div>`;
+            let dimensions = await getImageDimensions(processedBase64, file_type);
+            out += wl('Dimensions', dimensions);
+            let videoSrc = encodeURI(video.src);
+            console.log('Video source:', videoSrc);
+            out += `<video id="stamp-video-${tx}" class="stamp-video" controls preload="metadata" muted playsinline src="${videoSrc}"></video><br>`;
+            out += `<div class="output-row"><span class="output-label">Note</span><span class="output-value">Tap the video to start playback or adjust volume. If playback fails, ensure the file is valid.</span></div>`;
+            window.pendingVideoEventListeners = window.pendingVideoEventListeners || [];
+            window.pendingVideoEventListeners.push(tx);
+          } else {
+            out += wl('MIME Type', 'text/html');
+            out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${base64}</pre></details></span></div>`;
+            out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + base64), 96)}</pre></details></span></div>`;
+            let dimensions = await getImageDimensions(processedBase64, file_type);
+            out += wl('Dimensions', dimensions);
+            out += `<iframe class="stamp-iframe" sandbox="allow-scripts" src="data:text/html;base64,${processedBase64}"></iframe><br>`;
+          }
+        } catch (e) {
+          out += wl('Error', 'Failed to parse HTML content: ' + e.message);
+          console.error(`HTML parsing error: ${e.message}`);
+        }
+      } else {
+        out += wl('MIME Type', `image/${file_type}`);
+        out += `<div class="output-row"><span class="output-label">Description</span><span class="output-value"><details><summary>Base64: (click to expand/collapse)</summary><pre class="base64-content">STAMP:${base64}</pre></details></span></div>`;
+        out += `<div class="output-row"><span class="output-label">Description (hex)</span><span class="output-value"><details><summary>Hex: (click to expand/collapse)</summary><pre class="base64-content">${chunk(bin2hex('STAMP:' + base64), 96)}</pre></details></span></div>`;
+        let dimensions = await getImageDimensions(processedBase64, file_type);
+        out += wl('Dimensions', dimensions);
+        out += `<img class="stamp-image" src="data:image/${file_type};base64,${processedBase64}" /><br>`;
+      }
+    } catch (e) {
+      out += wl('Error', 'Invalid base64 data for OLGA STAMP (P2WSH): ' + e.message);
+      console.error(`Base64 validation error in P2WSH: ${e.message}, base64=${base64.slice(0, 50)}...`);
     }
   }
   return out;
